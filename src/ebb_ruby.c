@@ -19,7 +19,8 @@ static VALUE global_request_method;
 static VALUE global_request_path;
 static VALUE global_request_uri;
 static VALUE global_server_port;
-static VALUE global_http_content_length;
+static VALUE global_content_length;
+static VALUE global_content_type;
 static VALUE global_http_prefix;
 static VALUE global_http_version;
 
@@ -132,7 +133,8 @@ VALUE env_field(struct ebb_env_item *item)
     return f;
   }
   switch(item->type) {
-    case MONGREL_CONTENT_LENGTH:  return global_http_content_length;
+    case MONGREL_CONTENT_LENGTH:  return global_content_length;
+    case MONGREL_CONTENT_TYPE:    return global_content_type;
     case MONGREL_FRAGMENT:        return global_fragment;
     case MONGREL_HTTP_VERSION:    return global_http_version;
     case MONGREL_QUERY_STRING:    return global_query_string;
@@ -241,6 +243,8 @@ void Init_ebb_ext()
   
   /** Defines global strings in the init method. */
 #define DEF_GLOBAL(N, val) global_##N = rb_obj_freeze(rb_str_new2(val)); rb_global_variable(&global_##N)
+  DEF_GLOBAL(content_length, "CONTENT_LENGTH");
+  DEF_GLOBAL(content_type, "CONTENT_TYPE");
   DEF_GLOBAL(fragment, "FRAGMENT");
   DEF_GLOBAL(path_info, "PATH_INFO");
   DEF_GLOBAL(query_string, "QUERY_STRING");
@@ -249,7 +253,6 @@ void Init_ebb_ext()
   DEF_GLOBAL(request_path, "REQUEST_PATH");
   DEF_GLOBAL(request_uri, "REQUEST_URI");
   DEF_GLOBAL(server_port, "SERVER_PORT");
-  DEF_GLOBAL(http_content_length, "HTTP_CONTENT_LENGTH");
   DEF_GLOBAL(http_prefix, "HTTP_");
   DEF_GLOBAL(http_version, "HTTP_VERSION");
   

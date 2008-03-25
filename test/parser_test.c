@@ -32,6 +32,8 @@ void init_test(void)
 void parse_simple_element_cb(void *_, int type, const char *at, size_t length)
 {
   switch(type) {
+  case MONGREL_CONTENT_LENGTH: assertStrEquals("12", at); break;
+  case MONGREL_CONTENT_TYPE: assertStrEquals("text/html", at); break;
   case MONGREL_HTTP_VERSION:   assertStrEquals("HTTP/1.1", at); break;
   case MONGREL_REQUEST_PATH:   assertStrEquals("/", at); break;
   case MONGREL_REQUEST_METHOD: assertStrEquals("GET", at); break;
@@ -49,7 +51,7 @@ void parse_simple_field_cb(void *_, const char *field, size_t flen, const char *
 
 void parse_simple_test(void)
 {
-  const char *simple = "GET / HTTP/1.1\r\n\r\n";
+  const char *simple = "GET / HTTP/1.1\r\nconTENT-length: 12\r\ncontent-TYPE: text/html\r\n\r\n";
   int nread;
   http_parser_init(&parser);
   parser.on_element = parse_simple_element_cb;
@@ -57,6 +59,7 @@ void parse_simple_test(void)
   nread = http_parser_execute(&parser, simple, strlen(simple), 0);
   assertEquals(nread, strlen(simple));
   assertTrue(http_parser_is_finished(&parser));
+  assertEquals(parser.content_length, 12);
 }
 
 

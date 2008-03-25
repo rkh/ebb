@@ -37,10 +37,15 @@
     }
   }
   
-  action http_content_length {
+  action content_length {
     if(!apply_element(parser, MONGREL_CONTENT_LENGTH, PTR_TO(mark), fpc, 20))
       fbreak;
     set_content_length(parser, PTR_TO(mark), LEN(mark, fpc));
+  }
+  
+  action content_type {
+    if(!apply_element(parser, MONGREL_CONTENT_TYPE, PTR_TO(mark), fpc, 10*1024))
+      fbreak;
   }
   
   action fragment {
@@ -122,10 +127,12 @@
 
   field_value = any* >start_value %write_value;
   
-  content_length = "Content-Length:"i " "* (digit+ >mark %http_content_length) :> CRLF;
-  unknown_header = (field_name ":" " "* field_value :> CRLF) -- content_length;
+  known_headers = ( ("Content-Length:"i " "* (digit+ >mark %content_length))
+                  | ("Content-Type:"i " "* (any* >mark %content_type))
+                  ) :> CRLF;
+  unknown_header = (field_name ":" " "* field_value :> CRLF) -- known_headers;
   
-  Request = Request_Line (content_length | unknown_header)* ( CRLF @done );
+  Request = Request_Line (known_headers | unknown_header)* ( CRLF @done );
 
 main := Request;
 
