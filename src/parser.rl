@@ -14,7 +14,6 @@
 #define LEN(AT, FPC) (FPC - buffer - parser->AT)
 #define MARK(M,FPC) (parser->M = (FPC) - buffer)
 #define PTR_TO(F) (buffer + parser->F)
-
 /** machine **/
 %%{
   machine http_parser;
@@ -38,73 +37,45 @@
     }
   }
   
-  action http_accept {
-    if(LEN(mark, fpc) > 1024) { parser->overflow_error = TRUE; fbreak; }
-    parser->on_element(parser->data, MONGREL_ACCEPT, PTR_TO(mark), LEN(mark, fpc));
-  }
-  action http_connection {
-    if(LEN(mark, fpc) > 1024) { parser->overflow_error = TRUE; fbreak; }
-    parser->on_element(parser->data, MONGREL_CONNECTION, PTR_TO(mark), LEN(mark, fpc));
-  }
   action http_content_length {
-    if(LEN(mark, fpc) > 20) { parser->overflow_error = TRUE; fbreak; }
+    if(!apply_element(parser, MONGREL_CONTENT_LENGTH, PTR_TO(mark), fpc, 20))
+      fbreak;
     set_content_length(parser, PTR_TO(mark), LEN(mark, fpc));
-    parser->on_element(parser->data, MONGREL_CONTENT_LENGTH, PTR_TO(mark), LEN(mark, fpc));
-  }
-  
-  action http_content_type {
-    if(LEN(mark, fpc) > 1024) { parser->overflow_error = TRUE; fbreak; }
-    parser->on_element(parser->data, MONGREL_CONTENT_TYPE, PTR_TO(mark), LEN(mark, fpc));
   }
   
   action fragment {
-    /* Don't know if this length is specified somewhere or not */
-    if(LEN(mark, fpc) > 1024) { parser->overflow_error = TRUE; fbreak; }
-    parser->on_element(parser->data, MONGREL_FRAGMENT, PTR_TO(mark), LEN(mark, fpc));
+    if(!apply_element(parser, MONGREL_FRAGMENT, PTR_TO(mark), fpc, 10*1024))
+      fbreak;
   }
   
   action http_version {
-    parser->on_element(parser->data, MONGREL_HTTP_VERSION, PTR_TO(mark), LEN(mark, fpc));
+    if(!apply_element(parser, MONGREL_HTTP_VERSION, PTR_TO(mark), fpc, 10))
+      fbreak;
   }
   
   action request_path {
-    if(LEN(mark, fpc) > 1024) {
-      parser->overflow_error = TRUE;
+    if(!apply_element(parser, MONGREL_REQUEST_PATH, PTR_TO(mark), fpc, 1024))
       fbreak;
-    }
-    parser->on_element(parser->data, MONGREL_REQUEST_PATH, PTR_TO(mark), LEN(mark,fpc));
   }
   
-  action request_method { 
-    parser->on_element(parser->data, MONGREL_REQUEST_METHOD, PTR_TO(mark), LEN(mark, fpc));
+  action request_method {
+    if(!apply_element(parser, MONGREL_REQUEST_METHOD, PTR_TO(mark), fpc, 1024))
+      fbreak;
   }
   
   action request_uri {
-    if(LEN(mark, fpc) > 12 * 1024) {
-      parser->overflow_error = TRUE;
+    if(!apply_element(parser, MONGREL_REQUEST_URI, PTR_TO(mark), fpc, 12*1024))
       fbreak;
-    }
-    parser->on_element(parser->data, MONGREL_REQUEST_URI, PTR_TO(mark), LEN(mark, fpc));
   }
   
   action start_query {MARK(query_start, fpc); }
-  action query_string { 
-    if(LEN(query_start, fpc) > 10 * 1024) {
-      parser->overflow_error = TRUE;
+  action query_string {
+    if(!apply_element(parser, MONGREL_QUERY_STRING, PTR_TO(query_start), fpc, 10*1024))
       fbreak;
-    }
-    parser->on_element(parser->data, MONGREL_QUERY_STRING, PTR_TO(query_start), LEN(query_start, fpc));
   }
   
-  
   action done {
-    if(parser->nread > 1024 * (80 + 32)) {
-      parser->overflow_error = TRUE;
-      fbreak;
-    }
-    parser->body_start = fpc - buffer + 1; 
-    if(parser->header_done != NULL)
-      parser->header_done(parser->data, fpc + 1, pe - fpc - 1);
+    parser->body_start = fpc - buffer + 1;
     fbreak;
   }
 
@@ -151,14 +122,10 @@
 
   field_value = any* >start_value %write_value;
   
-  known_header = ( ("Accept:"i         " "* (any* >mark %http_accept))
-                 | ("Connection:"i     " "* (any* >mark %http_connection))
-                 | ("Content-Length:"i " "* (digit+ >mark %http_content_length))
-                 | ("Content-Type:"i   " "* (any* >mark %http_content_type))
-                 ) :> CRLF;
-  unknown_header = (field_name ":" " "* field_value :> CRLF) -- known_header;
+  content_length = "Content-Length:"i " "* (digit+ >mark %http_content_length) :> CRLF;
+  unknown_header = (field_name ":" " "* field_value :> CRLF) -- content_length;
   
-  Request = Request_Line (known_header | unknown_header)* ( CRLF @done );
+  Request = Request_Line (content_length | unknown_header)* ( CRLF @done );
 
 main := Request;
 
@@ -166,6 +133,19 @@ main := Request;
 
 /** Data **/
 %% write data;
+
+/* returns TRUE if applied, FALSE if there was an error */
+static int apply_element(http_parser *parser, int type, const char *begin, const char *end, int max_length)
+{
+  int len = (int)(end-begin);
+  if(len > max_length) {
+    parser->overflow_error = TRUE;
+    return FALSE;
+  }
+  if(parser->on_element)
+    parser->on_element(parser->data, type, begin, len);
+  return TRUE;
+}
 
 static void set_content_length(http_parser *parser, const char *at, int length)
 {
@@ -217,6 +197,10 @@ size_t http_parser_execute(http_parser *parser, const char *buffer, size_t len, 
   assert(parser->mark < len && "mark is after buffer end");
   assert(parser->field_len <= len && "field has length longer than whole buffer");
   assert(parser->field_start < len && "field starts after buffer end");
+  
+  if(parser->nread > 1024 * (80 + 32))
+    parser->overflow_error = TRUE;
+  
   
   /* Ragel 6 does not use write eof; no need for this
   if(parser->body_start) {

@@ -3,8 +3,7 @@
 #include <string.h>
 #include "parser.h"
 #include <assert.h>
-#define TRUE (1)
-#define FALSE (0)
+#include <glib.h>
 #define assertFalse(x) assert(!(x)); printf(".")
 #define assertTrue(x) assert(x); printf(".")
 #define assertEquals(x, y) assert(x == y); printf(".")
@@ -167,52 +166,63 @@ char *rand_data(int min, int max, int readable)
 
 void horrible_queries_test(void) {
   int i;
-  char req[1000 * 1024];
+  GString *req = g_string_new("");
   
   for(i = 0; i < 10; i++) {
-    sprintf(req, "GET /%s HTTP/1.1\r\nX-%s: Test\r\n\r\n"
-               , rand_data(10, 120, TRUE)
-               , rand_data(1024, 1024+i*1024, TRUE)
-               );
+    g_string_append_printf(req, "GET /%s HTTP/1.1\r\nX-%s: Test\r\n\r\n"
+                              , rand_data(10, 120, TRUE)
+                              , rand_data(1024, 1024+i*1024, TRUE)
+                              );
     http_parser_init(&parser);
     parser.on_element = donothing_element_cb;
     parser.http_field = 0;
-    http_parser_execute(&parser, req, strlen(req), 0);
+    http_parser_execute(&parser, req->str, req->len, 0);
     assertTrue(http_parser_has_error(&parser));
   }
+  req->len = 0;
   
   /* then that large mangled field values are caught */
   for(i = 0; i < 10; i++) {
-    sprintf(req, "GET /%s HTTP/1.1\r\nX-Test: %s\r\n\r\n"
-               , rand_data(10,120, TRUE)
-               , rand_data(1024, 1024+(i*1024), FALSE)
-               );
+    g_string_append_printf(req, "GET /%s HTTP/1.1\r\nX-Test: %s\r\n\r\n"
+                              , rand_data(10,120, TRUE)
+                              , rand_data(1024, 1024+(i*1024), FALSE)
+                              );
     http_parser_init(&parser);
     parser.on_element = donothing_element_cb;
     parser.http_field = 0;
-    http_parser_execute(&parser, req, strlen(req), 0);
+    http_parser_execute(&parser, req->str, req->len, 0);
     assertTrue(http_parser_has_error(&parser));
   }
+  req->len = 0;
   
-  /* then large headers are rejected too */  
-  //   # then large headers are rejected too
-  //   req = "GET /#{rand_data(10,120)} HTTP/1.1\r\n"
-  //   req << "X-Test: test\r\n" * (80 * 1024)
-  //   assert drops_request?(req), "large headers are rejected"
+  /* then large headers are rejected too */
+  g_string_append_printf(req, "GET /%s HTTP/1.1\r\n", rand_data(10,120, TRUE));
+  for(i = 0; i < 80 * 1024; i++) {
+    g_string_append(req, "X-Test: test\r\n");
+  }
+  http_parser_init(&parser);
+  parser.on_element = donothing_element_cb;
+  parser.http_field = 0;
+  http_parser_execute(&parser, req->str, req->len, 0);
+  //assertTrue(http_parser_is_finished(&parser));
+  assertTrue(http_parser_has_error(&parser));
+  req->len = 0;
   
   
   /* finally just that random garbage gets blocked all the time */
   for(i = 0; i < 10; i++) {
-    sprintf(req, "GET %s %s\r\n\r\n"
-               , rand_data(1024, 1024+(i*1024), FALSE)
-               , rand_data(1024, 1024+(i*1024), FALSE)
-               );
+    g_string_append_printf(req, "GET %s %s\r\n\r\n"
+                              , rand_data(1024, 1024+(i*1024), FALSE)
+                              , rand_data(1024, 1024+(i*1024), FALSE)
+                              );
     http_parser_init(&parser);
     parser.on_element = donothing_element_cb;
     parser.http_field = 0;
-    http_parser_execute(&parser, req, strlen(req), 0);
+    http_parser_execute(&parser, req->str, req->len, 0);
     assertTrue(http_parser_has_error(&parser));
   }
+  
+  g_string_free(req, TRUE);
 }
 
 int main(int argc, char *argv[])

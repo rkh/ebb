@@ -35,11 +35,11 @@ end
 class HttpParserTest < ServerTest
   
   def test_parse_simple
-    env = send_request("GET / HTTP/1.1\r\n\r\n")
+    env = send_request("GET / HTTP/1.0\r\n\r\n")
     
     assert_equal 'HTTP/1.1', env['SERVER_PROTOCOL']
     assert_equal '/', env['REQUEST_PATH']
-    assert_equal 'HTTP/1.1', env['HTTP_VERSION']
+    assert_equal 'HTTP/1.0', env['HTTP_VERSION']
     assert_equal '/', env['REQUEST_URI']
     assert_equal 'GET', env['REQUEST_METHOD']    
     assert_nil env['FRAGMENT']
@@ -48,7 +48,7 @@ class HttpParserTest < ServerTest
   end
   
   def test_parse_dumbfuck_headers
-    should_be_good = "GET / HTTP/1.1\r\naaaaaaaaaaaaa:++++++++++\r\n\r\n"
+    should_be_good = "GET / HTTP/1.0\r\naaaaaaaaaaaaa:++++++++++\r\n\r\n"
     env = send_request(should_be_good)
     assert_equal "++++++++++", env["HTTP_AAAAAAAAAAAAA"]
     assert_equal "", env['rack.input']
@@ -62,7 +62,7 @@ class HttpParserTest < ServerTest
   end
 
   def test_fragment_in_uri
-    env = send_request("GET /forums/1/topics/2375?page=1#posts-17408 HTTP/1.1\r\n\r\n")
+    env = send_request("GET /forums/1/topics/2375?page=1#posts-17408 HTTP/1.0\r\n\r\n")
     assert_equal '/forums/1/topics/2375?page=1', env['REQUEST_URI']
     assert_equal 'posts-17408', env['FRAGMENT']
     assert_equal "", env['rack.input']
@@ -91,7 +91,7 @@ class HttpParserTest < ServerTest
     # then that large mangled field values are caught
     10.times do |c|
       req = "GET /#{rand_data(10,120)} HTTP/1.1\r\nX-Test: #{rand_data(1024, 1024+(c*1024), false)}\r\n\r\n"
-      #assert drops_request?(req), "large mangled field values are caught"
+      assert drops_request?(req), "large mangled field values are caught"
       ### XXX this is broken! fix me. this test should drop the request.
     end
     

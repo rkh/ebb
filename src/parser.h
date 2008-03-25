@@ -12,11 +12,7 @@
 #include <stddef.h>
 #endif
 
-
-enum { MONGREL_ACCEPT
-     , MONGREL_CONNECTION
-     , MONGREL_CONTENT_LENGTH
-     , MONGREL_CONTENT_TYPE
+enum { MONGREL_CONTENT_LENGTH
      , MONGREL_FRAGMENT
      , MONGREL_HTTP_VERSION
      , MONGREL_QUERY_STRING
@@ -25,9 +21,8 @@ enum { MONGREL_ACCEPT
      , MONGREL_REQUEST_URI
      };
 
-typedef void (*element_cb)(void *data, const char *at, size_t length);
 typedef void (*field_cb)(void *data, const char *field, size_t flen, const char *value, size_t vlen);
-typedef void (*new_element_cb)(void *data, int type, const char *at, size_t length);
+typedef void (*element_cb)(void *data, int type, const char *at, size_t length);
 
 typedef struct http_parser { 
   int cs;
@@ -43,9 +38,7 @@ typedef struct http_parser {
   void *data;
 
   field_cb http_field;
-  
-  element_cb header_done;
-  new_element_cb on_element;
+  element_cb on_element;
 } http_parser;
 
 void http_parser_init(http_parser *parser);

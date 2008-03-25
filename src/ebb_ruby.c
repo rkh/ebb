@@ -19,11 +19,7 @@ static VALUE global_request_method;
 static VALUE global_request_path;
 static VALUE global_request_uri;
 static VALUE global_server_port;
-static VALUE global_http_accept;
-static VALUE global_http_connection;
 static VALUE global_http_content_length;
-static VALUE global_http_content_type;
-static VALUE global_http_content_type;
 static VALUE global_http_prefix;
 static VALUE global_http_version;
 
@@ -136,10 +132,7 @@ VALUE env_field(struct ebb_env_item *item)
     return f;
   }
   switch(item->type) {
-    case MONGREL_ACCEPT:          return global_http_accept;
-    case MONGREL_CONNECTION:      return global_http_connection;
     case MONGREL_CONTENT_LENGTH:  return global_http_content_length;
-    case MONGREL_CONTENT_TYPE:    return global_http_content_type;
     case MONGREL_FRAGMENT:        return global_fragment;
     case MONGREL_HTTP_VERSION:    return global_http_version;
     case MONGREL_QUERY_STRING:    return global_query_string;
@@ -256,10 +249,7 @@ void Init_ebb_ext()
   DEF_GLOBAL(request_path, "REQUEST_PATH");
   DEF_GLOBAL(request_uri, "REQUEST_URI");
   DEF_GLOBAL(server_port, "SERVER_PORT");
-  DEF_GLOBAL(http_accept, "HTTP_ACCEPT");
-  DEF_GLOBAL(http_connection, "HTTP_CONNECTION");
   DEF_GLOBAL(http_content_length, "HTTP_CONTENT_LENGTH");
-  DEF_GLOBAL(http_content_type, "HTTP_CONTENT_TYPE");
   DEF_GLOBAL(http_prefix, "HTTP_");
   DEF_GLOBAL(http_version, "HTTP_VERSION");
   
