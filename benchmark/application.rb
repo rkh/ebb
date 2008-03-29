@@ -53,12 +53,12 @@ class SimpleApp
       while chunk = env['rack.input'].read(512)
         input_body << chunk 
       end
-      if env['HTTP_CONTENT_LENGTH'].to_i == input_body.length
+      if env['CONTENT_LENGTH'].to_i == input_body.length
         body = "Content-Length matches input length"
         status = 200
       else
         body = "Content-Length doesn't matches input length! 
-          content_length = #{env['HTTP_CONTENT_LENGTH'].to_i}
+          content_length = #{env['CONTENT_LENGTH'].to_i}
           input_body.length = #{input_body.length}"
         status = 500
       end
