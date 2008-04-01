@@ -21,6 +21,7 @@ static VALUE global_request_uri;
 static VALUE global_server_port;
 static VALUE global_content_length;
 static VALUE global_content_type;
+static VALUE global_http_client_ip;
 static VALUE global_http_prefix;
 static VALUE global_http_version;
 
@@ -173,6 +174,9 @@ VALUE client_env(VALUE _, VALUE rb_client)
   if(client->server->port)
     rb_hash_aset(env, global_server_port, rb_str_new2(client->server->port));
   
+  if(client->ip)
+    rb_hash_aset(env, global_http_client_ip, rb_str_new2(client->ip));
+  
   rb_hash_aset(env, global_path_info, rb_hash_aref(env, global_request_path));
   return env;
 }
@@ -253,6 +257,7 @@ void Init_ebb_ext()
   DEF_GLOBAL(request_path, "REQUEST_PATH");
   DEF_GLOBAL(request_uri, "REQUEST_URI");
   DEF_GLOBAL(server_port, "SERVER_PORT");
+  DEF_GLOBAL(http_client_ip, "HTTP_CLIENT_IP");
   DEF_GLOBAL(http_prefix, "HTTP_");
   DEF_GLOBAL(http_version, "HTTP_VERSION");
   

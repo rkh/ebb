@@ -45,6 +45,7 @@ class HttpParserTest < ServerTest
     assert_nil env['FRAGMENT']
     assert_nil env['QUERY_STRING']
     assert_equal "", env['rack.input']
+    assert_equal '127.0.0.1', env['HTTP_CLIENT_IP']
   end
   
   def test_parse_dumbfuck_headers

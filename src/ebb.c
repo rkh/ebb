@@ -318,7 +318,7 @@ static void client_init(ebb_client *client)
   if(!client->open) {
     /* DO SOCKET STUFF */
     socklen_t len;
-    int fd = accept(client->server->fd, (struct sockaddr*)&(client->server->sockaddr), &len);
+    int fd = accept(client->server->fd, (struct sockaddr*)&(client->sockaddr), &len);
     if(fd < 0) {
       perror("accept()");
       return;
@@ -326,6 +326,9 @@ static void client_init(ebb_client *client)
     client->open = TRUE;
     client->fd = fd;
   }
+  
+  /* Address */
+  client->ip = inet_ntoa(client->sockaddr.sin_addr);
   
   set_nonblock(client->fd);
   
@@ -563,6 +566,7 @@ void ebb_client_close(ebb_client *client)
       client->upload_file = NULL;
       client->upload_filename = NULL;
     }
+    client->ip = NULL;
     
     close(client->fd);
     client->open = FALSE;

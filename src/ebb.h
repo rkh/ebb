@@ -42,7 +42,7 @@ struct ebb_env_item {
 
 struct ebb_client {
   EBB_TCP_COMMON
-  
+  char *ip;
   unsigned int in_use : 1;
   
   ebb_server *server;
