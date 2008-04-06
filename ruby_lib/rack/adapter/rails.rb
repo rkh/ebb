@@ -66,6 +66,11 @@ module Rack
           serve_rails(env)
         end
       end
+      
+      # Never spawn threads for a request
+      def spawn_thread?(env)
+        false
+      end
     
       protected
         

@@ -1,10 +1,11 @@
 .gdb_history
-src/ebb.o
-src/parser.o
-src/parser.c
-src/ebb_ruby.o
-src/ebb_ext.bundle
 benchmark/runall.sh
 site/index.html
 src/Makefile
+src/ebb.o
+src/ebb_ext.bundle
+src/ebb_ruby.o
 src/mkmf.log
+src/parser.c
+src/parser.o
+test/parser_test

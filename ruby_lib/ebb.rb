@@ -8,32 +8,27 @@ module Ebb
   autoload :Runner, LIBDIR + '/ebb/runner'
   
   def self.start_server(app, options={})
-    port = (options[:port] || 4001).to_i
-    if options.has_key?(:threaded_processing)
-      threaded_processing = options[:threaded_processing] ? true : false
-    else
-      threaded_processing = true
-    end
-    
-    Client::BASE_ENV['rack.multithread'] = threaded_processing
-
     if options.has_key?(:fileno)
-      FFI::server_listen_on_fd(options[:fileno].to_i)
+      fd = options[:fileno].to_i
+      FFI::server_listen_on_fd(fd)
+      log.puts "Ebb is listening on file descriptor #{fd}"
     else
+      port = (options[:port] || 4001).to_i
       FFI::server_listen_on_port(port)
+      log.puts "Ebb is listening at http://0.0.0.0:#{port}/"
     end
+    log.puts "Ebb PID #{Process.pid}"
+    
     @running = true
     trap('INT')  { stop_server }
-    
-    log.puts "Ebb listening at http://0.0.0.0:#{port}/ (#{threaded_processing ? 'threaded' : 'sequential'} processing, PID #{Process.pid})"
     
     while @running
       FFI::server_process_connections()
       while client = FFI::waiting_clients.shift
-        if threaded_processing
-          Thread.new(client) { |c| process(app, c) }
-        else
+        if app.respond_to?(:spawn_thread?) and !app.spawn_thread?(client.env)
           process(app, client)
+        else
+          Thread.new(client) { |c| process(app, c) }
         end
       end
     end
