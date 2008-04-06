@@ -130,7 +130,8 @@ static void* read_body_into_file(void *_client)
   
   /* set blocking socket */
   int flags = fcntl(client->fd, F_GETFL, 0);
-  assert(0 <= fcntl(client->fd, F_SETFL, flags & ~O_NONBLOCK));
+  int ret = fcntl(client->fd, F_SETFL, flags & ~O_NONBLOCK);
+  assert(0 <= ret);
   
   if(0 > mkstemp(filename)) {
     perror("mkstemp()");
@@ -238,7 +239,8 @@ static void on_client_readable(struct ev_loop *loop, ev_io *watcher, int revents
       /* read body into file - in a thread */
       ev_io_stop(loop, watcher);
       pthread_t thread;
-      assert(0 <= pthread_create(&thread, NULL, read_body_into_file, client));
+      int ret = pthread_create(&thread, NULL, read_body_into_file, client);
+      assert(0 <= ret);
       pthread_detach(thread);
       return;
     }
@@ -476,6 +478,23 @@ void ebb_server_unlisten(ebb_server *server)
   }
 }
 
+int ebb_server_listen_on_fd(ebb_server *server, const int sfd)
+{
+  set_nonblock(sfd);
+
+  server->fd = sfd;
+  server->port = NULL;
+  assert(server->open == FALSE);
+  server->open = TRUE;
+
+  server->request_watcher.data = server;
+  ev_init (&server->request_watcher, on_request);
+  ev_io_set (&server->request_watcher, server->fd, EV_READ | EV_ERROR);
+  ev_io_start (server->loop, &server->request_watcher);
+
+  return server->fd;
+}
+
 int ebb_server_listen_on_port(ebb_server *server, const int port)
 {
   int sfd = -1;
@@ -514,18 +533,13 @@ int ebb_server_listen_on_port(ebb_server *server, const int port)
     perror("listen()");
     goto error;
   }
-  server->fd = sfd;
-  server->port = malloc(sizeof(char)*8); /* for easy access to the port */
-  sprintf(server->port, "%d", port);
-  assert(server->open == FALSE);
-  server->open = TRUE;
-  
-  server->request_watcher.data = server;
-  ev_init (&server->request_watcher, on_request);
-  ev_io_set (&server->request_watcher, server->fd, EV_READ | EV_ERROR);
-  ev_io_start (server->loop, &server->request_watcher);
-  
-  return server->fd;
+
+  int ret = ebb_server_listen_on_fd(server, sfd);
+  if (ret >= 0) {
+    server->port = malloc(sizeof(char)*8); /* for easy access to the port */
+    sprintf(server->port, "%d", port);
+  }
+  return ret;
 error:
   if(sfd > 0) close(sfd);
   return -1;
