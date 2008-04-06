@@ -11,10 +11,7 @@ module Ebb
         # defaults for ebb_rails
         @options.update(
           :environment => 'development',
-          :port => 3000,
-          # rails has a mutex lock around each request - threaded processing
-          # will only slow things down
-          :threaded_processing => false
+          :port => 3000
         )
 
         @parser.on("-e", "--env ENV", 

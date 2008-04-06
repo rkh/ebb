@@ -58,8 +58,7 @@ module Ebb
       @parser = OptionParser.new
       @options = {
         :port => 4001,
-        :timeout => 60,
-        :threaded_processing => true
+        :timeout => 60
       }
     end
     
@@ -71,6 +70,7 @@ module Ebb
       @parser.separator ""
       #  opts.on("-s", "--socket SOCKET", "listen on socket") { |socket| options[:socket] = socket }
       @parser.on("-p", "--port PORT", "(default: #{@options[:port]})") { |p| @options[:port]=p }
+      @parser.on("-fd", "--fd FD", "listen on arbitrary fd") { |fd| @options[:fileno]=fd }
       @parser.on("-d", "--daemonize", "Daemonize") { @options[:daemonize] = true }
       @parser.on("-l", "--log-file FILE", "File to redirect output") { |f| @options[:log_file]=f }
       @parser.on("-P", "--pid-file FILE", "File to store PID") { |f| @options[:pid_file]=f }
