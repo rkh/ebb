@@ -85,22 +85,41 @@ VALUE server_listen_on_port(VALUE _, VALUE port)
   return Qnil;
 }
 
+const struct timeval idle_timeout = { tv_sec: 0, tv_usec: 50000 };
+
 static void
 idle_cb (struct ev_loop *loop, struct ev_idle *w, int revents) {
+  /* How to let other Ruby threads run while we're in this blocking C call */
+
+  /* TODO: For Ruby 1.9 I should use rb_thread_blocking_region() instead of 
+   * this hacky idle_cb
+   */
+  
   if(clients_in_use_p()) {
-    rb_thread_schedule();
-  } else if(!rb_thread_alone()) {
-    /* if you have another long running thread running besides the ones used
-     * for the webapp's requests you will run into performance problems in 
-     * ruby 1.8.x because rb_thread_select is slow. 
-     * (Don't worry - you're probably not doing this.)
+    /* If ruby has control of any clients - that means there are some requests
+     * still being processed inside of threads. We need to allow Ruby some
+     * time to work on these threads so we call rb_thread_schedule()
+     * I don't use rb_thread_select() here because it is very slow.
      */
-    struct timeval select_timeout = { tv_sec: 0, tv_usec: 50000 };
+    rb_thread_schedule();
+
+  } else if(!rb_thread_alone()) {
+    /* If no clients are in use, but there are still other Ruby threads then
+     * some other thread is running in the Ruby VM which is not a request.
+     * This is a sub-optimal situation and we solve it by calling 
+     * rb_thread_select() to wait for the server fd to wake up.
+     * One should try to avoid entering this state.
+     */
     fd_set server_fd_set;
     FD_ZERO(&server_fd_set);
     FD_SET(server->fd, &server_fd_set);
-    rb_thread_select(server->fd+1, &server_fd_set, 0, 0, &select_timeout);
+    rb_thread_select(server->fd+1, &server_fd_set, 0, 0, &idle_timeout);
   } else {
+    /* Otherwise there are no other threads. We can detach the idle_watcher
+     * and allow the server_process_connections() to block until the 
+     * server fd wakes up. Because we don't use rb_thread_select() this
+     * is quite fast.
+     */
     detach_idle_watcher();
   }
 }
