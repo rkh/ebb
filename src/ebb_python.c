@@ -16,6 +16,9 @@
  */
 static ebb_server server;
 struct ev_loop *loop;
+
+static PyThreadState *libev_thread_state;
+
 static PyObject *application;
 static PyObject *base_env;
 static PyObject *global_http_prefix;
@@ -60,7 +63,7 @@ static PyMethodDef client_methods[] =
 
 static PyTypeObject py_client_t = 
   { ob_refcnt: 1
-  , tp_name: "ebb.Client"
+  , tp_name: "ebb_ffi.Client"
   , tp_doc: "a wrapper around ebb_client"
   , tp_basicsize: sizeof(py_client)
   , tp_flags: Py_TPFLAGS_DEFAULT
@@ -89,14 +92,14 @@ py_start_response(py_client *self, PyObject *args, PyObject *kw)
   PyObject *iterator = PyObject_GetIter(response_headers);
   PyObject *header_pair;
   char *field, *value;
-  while(header_pair = PyIter_Next(iterator)) {
+  while(( header_pair = PyIter_Next(iterator) )) {
     if(!PyArg_ParseTuple(header_pair, "ss", &field, &value))
       return NULL;
     ebb_client_write_header(self->client, field, value);
     Py_DECREF(header_pair);
   }
-  ebb_client_write(self->client, "\r\n", 2);
   
+  /* return write object */
   Py_RETURN_NONE;
 }
 
@@ -105,27 +108,27 @@ static PyObject* env_field(struct ebb_env_item *item)
   PyObject* f = NULL;
   int i;
   
-  switch(item->type) {
-    case EBB_FIELD_VALUE_PAIR:
-      f = PyString_FromStringAndSize(NULL, PyString_GET_SIZE(global_http_prefix) + item->field_length);
-      memcpy( PyString_AS_STRING(f)
-            , PyString_AS_STRING(global_http_prefix)
-            , PyString_GET_SIZE(global_http_prefix)
-            );
-      for(i = 0; i < item->field_length; i++) {
-        char *ch = PyString_AS_STRING(f) + PyString_GET_SIZE(global_http_prefix) + i;
-        *ch = item->field[i] == '-' ? '_' : ASCII_UPPER(item->field[i]);
-      }
-      break;
-    case EBB_REQUEST_METHOD:  f = global_request_method; break;
-    case EBB_REQUEST_URI:     f = global_request_uri; break;
-    case EBB_FRAGMENT:        f = global_fragment; break;
-    case EBB_REQUEST_PATH:    f = global_request_path; break;
-    case EBB_QUERY_STRING:    f = global_query_string; break;
-    case EBB_HTTP_VERSION:    f = global_http_version; break;
-    case EBB_SERVER_PORT:     f = global_server_port; break;
-    case EBB_CONTENT_LENGTH:  f = global_content_length; break;
-    default: assert(FALSE);
+  if(item->field) {
+    f = PyString_FromStringAndSize(NULL, PyString_GET_SIZE(global_http_prefix) + item->field_length);
+    memcpy( PyString_AS_STRING(f)
+          , PyString_AS_STRING(global_http_prefix)
+          , PyString_GET_SIZE(global_http_prefix)
+          );
+    for(i = 0; i < item->field_length; i++) {
+      char *ch = PyString_AS_STRING(f) + PyString_GET_SIZE(global_http_prefix) + i;
+      *ch = item->field[i] == '-' ? '_' : ASCII_UPPER(item->field[i]);
+    }
+  } else {
+    switch(item->type) {
+      case MONGREL_REQUEST_METHOD:  f = global_request_method; break;
+      case MONGREL_REQUEST_URI:     f = global_request_uri; break;
+      case MONGREL_FRAGMENT:        f = global_fragment; break;
+      case MONGREL_REQUEST_PATH:    f = global_request_path; break;
+      case MONGREL_QUERY_STRING:    f = global_query_string; break;
+      case MONGREL_HTTP_VERSION:    f = global_http_version; break;
+      case MONGREL_CONTENT_LENGTH:  f = global_content_length; break;
+      default: assert(FALSE);
+    }
   }
   Py_INCREF(f);
   return f;
@@ -137,7 +140,7 @@ static PyObject* env_value(struct ebb_env_item *item)
   if(item->value_length > 0)
     return PyString_FromStringAndSize(item->value, item->value_length);
   else
-    return Py_None; // XXX need to increase ref count? :/
+    return Py_None; /* XXX need to increase ref count? :*/
 }
 
 
@@ -168,10 +171,9 @@ static py_client* py_client_new(ebb_client *client)
   return self;
 }
 
-const char *test_response = "test_response defined in ebb_python.c\r\n";
-
-void request_cb(ebb_client *client, void *ignore)
+void request_cb(ebb_client *client, void *_)
 {
+  PyEval_RestoreThread(libev_thread_state); /* acquire GIL for this thread */
   
   PyObject *environ, *start_response;
   
@@ -199,58 +201,59 @@ void request_cb(ebb_client *client, void *ignore)
     char *body_string = PyString_AsString(body_item);
     int body_length = PyString_Size(body_item);
     /* Todo support streaming! */
-    ebb_client_write(pclient->client, body_string, body_length);
+    ebb_client_write_body(client, body_string, body_length);
     Py_DECREF(body_item);
   }
   
-  ebb_client_begin_transmission(client);
+  ebb_client_release(client);
   
   Py_DECREF(pclient);
+  libev_thread_state = PyEval_SaveThread(); /* allow other python threads to run again */
 }
 
 
-static PyObject *start_server(PyObject *self, PyObject *args)
+static PyObject *process_connections(PyObject *_, PyObject *args)
 {
-  PyObject *application_temp;
-  int port;
-  
-  if(!PyArg_ParseTuple(args, "Oi", &application_temp, &port))
+  assert(application == NULL);
+  if(!PyArg_ParseTuple(args, "O", &application))
     return NULL;
-  if(!PyCallable_Check(application_temp)) {
+  if(!PyCallable_Check(application)) {
     PyErr_SetString(PyExc_TypeError, "parameter must be callable");
     return NULL;
   }
-  Py_XINCREF(application_temp);         /* Add a reference to new callback */
-  Py_XDECREF(application);              /* Dispose of previous callback */
-  application = application_temp;       /* Remember new callback */
+  Py_XINCREF(application);
   
-  loop = ev_default_loop(0);
-  ebb_server_init(&server, loop, request_cb, NULL);
-  ebb_server_listen_on_port(&server, port);
   
-  //ev_loop(loop, EVLOOP_ONESHOT);
+  libev_thread_state = PyEval_SaveThread(); /* allow other threads to run */
   ev_loop(loop, 0);
+  PyEval_RestoreThread(libev_thread_state); /* reacquire GIL */
+  
   
   Py_XDECREF(application);
-  
+  application = NULL;
   Py_RETURN_NONE;
 }
 
-static PyObject *stop_server(PyObject *self)
+static PyObject *listen_on_port(PyObject *_, PyObject *args)
 {
+  int port;
+  if(!PyArg_ParseTuple(args, "i", &port))
+    return NULL;  
+  ebb_server_init(&server, loop, request_cb, NULL);
+  ebb_server_listen_on_port(&server, port);
   Py_RETURN_NONE;
 }
 
 
 static PyMethodDef ebb_module_methods[] = 
-  { {"start_server" , (PyCFunction)start_server, METH_VARARGS, NULL }
-  , {"stop_server" , (PyCFunction)stop_server, METH_NOARGS, NULL }
+  { {"listen_on_port", (PyCFunction)listen_on_port, METH_VARARGS, NULL}
+  , {"process_connections", (PyCFunction)process_connections, METH_VARARGS, NULL}
   , {NULL, NULL, 0, NULL}
   };
 
-PyMODINIT_FUNC initebb(void) 
+PyMODINIT_FUNC initebb_ffi(void) 
 {
-  PyObject *m = Py_InitModule("ebb", ebb_module_methods);
+  PyObject *m = Py_InitModule("ebb_ffi", ebb_module_methods);
   
   base_env = PyDict_New();
   PyDict_SetStringString(base_env, "SCRIPT_NAME", "");
@@ -286,5 +289,6 @@ PyMODINIT_FUNC initebb(void)
   DEF_GLOBAL(content_length, "CONTENT_LENGTH");
   DEF_GLOBAL(http_host, "HTTP_HOST");
   
+  loop = ev_default_loop(0);  
   ebb_server_init(&server, loop, request_cb, NULL);
 }

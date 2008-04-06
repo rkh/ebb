@@ -1,5 +1,6 @@
 .gdb_history
 benchmark/runall.sh
+build
 site/index.html
 src/Makefile
 src/ebb.o

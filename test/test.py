@@ -11,4 +11,4 @@ def simple_app(environ, start_response):
   start_response(status, response_headers)
   return ["Hello world!\n", "Something else!", "blllllaaaaaaaah\n"]
 
-ebb.start_server(simple_app, 4001)
+ebb.start_server(simple_app, {'port': 4001})
