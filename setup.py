@@ -15,8 +15,8 @@ ebb = Extension( "ebb"
                )
 
 setup( name = "Ebb"
-     , description = "a wsgi web server"
-     , version = "0.0.3"
+     , description = "a WSGI web server"
+     , version = "0.0.1"
      , author = "ry dahl"
      , author_email = "ry at tiny clouds dot org"
      , url = "http://ebb.rubyforge.org/"

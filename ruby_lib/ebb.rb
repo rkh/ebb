@@ -3,9 +3,10 @@
 # See README file for details.
 require 'stringio'
 module Ebb
+  VERSION = "0.2.0"
   LIBDIR = File.dirname(__FILE__)
-  require Ebb::LIBDIR + '/../src/ebb_ext'
   autoload :Runner, LIBDIR + '/ebb/runner'
+  autoload :FFI, LIBDIR + '/../src/ebb_ext'
   
   def self.start_server(app, options={})
     if options.has_key?(:fileno)
@@ -24,7 +25,7 @@ module Ebb
     
     while @running
       FFI::server_process_connections()
-      while client = FFI::waiting_clients.shift
+      while client = FFI::server_waiting_clients.shift
         if app.respond_to?(:spawn_thread?) and !app.spawn_thread?(client.env)
           process(app, client)
         else
@@ -93,16 +94,11 @@ module Ebb
     @@log
   end
   
-  # This array is created and manipulated in the C extension.
-  def FFI.waiting_clients
-    @waiting_clients
-  end
-  
   class Client
     BASE_ENV = {
       'SERVER_NAME' => '0.0.0.0',
       'SCRIPT_NAME' => '',
-      'SERVER_SOFTWARE' => "Ebb #{Ebb::VERSION}",
+      'SERVER_SOFTWARE' => "Ebb-Ruby #{Ebb::VERSION}",
       'SERVER_PROTOCOL' => 'HTTP/1.1',
       'rack.version' => [0, 1],
       'rack.errors' => STDERR,

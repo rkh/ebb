@@ -82,7 +82,7 @@ module Ebb
         exit
       end
       @parser.on_tail('-v', '--version', "Show version") do
-        Ebb.log.puts "Ebb #{Ebb::VERSION}"
+        Ebb.log.puts Ebb::Client::BASE_ENV['SERVER_SOFTWARE']
         exit
       end
       

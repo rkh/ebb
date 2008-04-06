@@ -11,6 +11,8 @@
 #include <ev.h>
 
 static VALUE cClient;
+static VALUE waiting_clients;
+
 static VALUE global_fragment;
 static VALUE global_path_info;
 static VALUE global_query_string;
@@ -65,7 +67,6 @@ static int clients_in_use_p()
 
 void request_cb(ebb_client *client, void *data)
 {
-  VALUE waiting_clients = (VALUE)data;
   VALUE rb_client = Data_Wrap_Struct(cClient, 0, 0, client);
   rb_ary_push(waiting_clients, rb_client);
   attach_idle_watcher();
@@ -85,7 +86,7 @@ VALUE server_listen_on_port(VALUE _, VALUE port)
   return Qnil;
 }
 
-const struct timeval idle_timeout = { tv_sec: 0, tv_usec: 50000 };
+static struct timeval idle_timeout = { tv_sec: 0, tv_usec: 50000 };
 
 static void
 idle_cb (struct ev_loop *loop, struct ev_idle *w, int revents) {
@@ -142,6 +143,11 @@ VALUE server_unlisten(VALUE _)
 VALUE server_open(VALUE _)
 {
   return server->open ? Qtrue : Qfalse;
+}
+
+VALUE server_waiting_clients(VALUE _)
+{
+  return waiting_clients;
 }
 
 VALUE env_field(struct ebb_env_item *item)
@@ -269,7 +275,7 @@ void Init_ebb_ext()
   VALUE mEbb = rb_define_module("Ebb");
   VALUE mFFI = rb_define_module_under(mEbb, "FFI");
   
-  rb_define_const(mEbb, "VERSION", rb_str_new2(EBB_VERSION));
+  rb_define_const(mFFI, "VERSION", rb_str_new2(EBB_VERSION));
   
   /** Defines global strings in the init method. */
 #define DEF_GLOBAL(N, val) global_##N = rb_obj_freeze(rb_str_new2(val)); rb_global_variable(&global_##N)
@@ -292,6 +298,7 @@ void Init_ebb_ext()
   rb_define_singleton_method(mFFI, "server_listen_on_port", server_listen_on_port, 1);
   rb_define_singleton_method(mFFI, "server_unlisten", server_unlisten, 0);
   rb_define_singleton_method(mFFI, "server_open?", server_open, 0);
+  rb_define_singleton_method(mFFI, "server_waiting_clients", server_waiting_clients, 0);
   
   cClient = rb_define_class_under(mEbb, "Client", rb_cObject);
   rb_define_singleton_method(mFFI, "client_read_input", client_read_input, 2);
@@ -308,7 +315,7 @@ void Init_ebb_ext()
   attach_idle_watcher();
   
   server = ebb_server_alloc();
-  VALUE waiting_clients = rb_ary_new();
+  waiting_clients = rb_ary_new();
   rb_iv_set(mFFI, "@waiting_clients", waiting_clients);
   ebb_server_init(server, loop, request_cb, (void*)waiting_clients);
 }

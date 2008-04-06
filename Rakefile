@@ -3,6 +3,12 @@ require 'rake/testtask'
 require 'rake/gempackagetask'
 require 'rake/clean'
 
+def dir(path)
+  File.expand_path File.join(File.dirname(__FILE__), path)
+end
+
+require dir('ruby_lib/ebb')
+
 COMMON_DISTFILES = FileList.new('src/ebb.{c,h}', 'src/parser.{c,h}', 
   'libev/*', 'README')
 
@@ -21,10 +27,6 @@ CLOBBER.add ['src/Makefile', 'src/parser.c', 'src/mkmf.log', 'build']
 Rake::TestTask.new do |t|
   t.test_files = FileList.new("test/*.rb")
   t.verbose = true
-end
-
-def dir(path)
-  File.expand_path File.join(File.dirname(__FILE__), path)
 end
 
 task(:default => [:compile, :test])
@@ -90,7 +92,7 @@ spec = Gem::Specification.new do |s|
   s.author = 'ry dahl'
   s.email = 'ry at tiny clouds dot org'
   s.homepage = 'http://ebb.rubyforge.org'
-  s.version = `grep EBB_VERSION #{dir('src/ebb.h')}`.match(/\d.\d.\d/)[0]
+  s.version = Ebb::VERSION
   s.rubyforge_project = 'ebb'
   
   s.add_dependency('rack')

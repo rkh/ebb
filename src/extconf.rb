@@ -1,6 +1,5 @@
 require 'mkmf'
 
-
 unless pkg_config('glib-2.0')
   abort "Ebb requires glib-2.0 and pkg_config"
 end
