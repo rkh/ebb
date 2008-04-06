@@ -1,0 +1,10 @@
+.gdb_history
+src/ebb.o
+src/parser.o
+src/parser.c
+src/ebb_ruby.o
+src/ebb_ext.bundle
+benchmark/runall.sh
+site/index.html
+src/Makefile
+src/mkmf.log
