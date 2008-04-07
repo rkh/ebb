@@ -30,7 +30,7 @@ module Ebb
     while @running
       FFI::server_process_connections()
       while client = FFI::server_waiting_clients.shift
-        if app.respond_to?(:spawn_thread?) and !app.spawn_thread?(client.env)
+        if app.respond_to?(:deferred?) and !app.deferred?(client.env)
           process(app, client)
         else
           Thread.new(client) { |c| process(app, c) }

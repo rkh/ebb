@@ -68,7 +68,7 @@ module Rack
       end
       
       # Never spawn threads for a request
-      def spawn_thread?(env)
+      def deferred?(env)
         false
       end
     
