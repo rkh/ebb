@@ -16,10 +16,15 @@
  */
 static ebb_server server;
 struct ev_loop *loop;
+struct ev_timer check_stop_watcher;
 
 static PyThreadState *libev_thread_state;
 
+static PyObject *py_request_cb;
 static PyObject *application;
+static int server_running;
+static int server_error;
+
 static PyObject *base_env;
 static PyObject *global_http_prefix;
 static PyObject *global_request_method;
@@ -37,27 +42,78 @@ static PyObject *global_http_host;
 
 /* A callable type called Client. __call__(status, response_headers)
  * is the second argument to an appplcation
- * Client.environ is the first argument.
+ * Client.env is the first argument.
  */
 typedef struct {
   PyObject_HEAD
   ebb_client *client;
+  PyObject *env;
 } py_client;
-
-static PyObject *
-py_start_response(py_client *self, PyObject *args, PyObject *kw);
 
 static void py_client_dealloc(PyObject *obj)
 {
   py_client *self = (py_client*) obj;
   ebb_client_release(self->client);
+  Py_DECREF(self->env);
   obj->ob_type->tp_free(obj);
-  printf("dealloc called!\n");
 }
 
+static PyObject *
+write_status(py_client *self, PyObject *args)
+{
+  char *status_human;
+  int status;
+  
+  if(!PyArg_ParseTuple(args, "is", &status, &status_human))
+    return NULL;
+  ebb_client_write_status(self->client, status, status_human);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+write_header(py_client *self, PyObject *args)
+{
+  char *field, *value;
+  
+  if(!PyArg_ParseTuple(args, "ss", &field, &value))
+    return NULL;
+  ebb_client_write_header(self->client, field, value);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+write_body(py_client *self, PyObject *args)
+{
+  char *body;
+  int body_length;
+  
+  if(!PyArg_ParseTuple(args, "s#", &body, &body_length))
+    return NULL;
+  ebb_client_write_body(self->client, body, body_length);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+client_release(py_client *self)
+{
+  ebb_client_release(self->client);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+client_env(py_client *self)
+{
+  Py_INCREF(self->env);
+  return self->env;
+}
+
+
 static PyMethodDef client_methods[] = 
-  { {"start_response" , (PyCFunction)py_start_response, METH_VARARGS, NULL }
-  // , {"write" , (PyCFunction)write, METH_VARARGS, NULL }
+  { {"write_status", (PyCFunction)write_status, METH_VARARGS, NULL }
+  , {"write_header", (PyCFunction)write_header, METH_VARARGS, NULL }
+  , {"write_body", (PyCFunction)write_body, METH_VARARGS, NULL }
+  , {"release", (PyCFunction)client_release, METH_NOARGS, NULL }
+  , {"env", (PyCFunction)client_env, METH_NOARGS, NULL }
   , {NULL, NULL, 0, NULL}
   };
 
@@ -70,38 +126,6 @@ static PyTypeObject py_client_t =
   , tp_methods: client_methods
   , tp_dealloc: py_client_dealloc
   };
-
-static PyObject *
-py_start_response(py_client *self, PyObject *args, PyObject *kw)
-{
-  PyObject *response_headers;
-  char *status_string;
-  int status;
-  
-  if(!PyArg_ParseTuple(args, "sO", &status_string, &response_headers))
-    return NULL;
-  
-  /* do this goofy split(' ') operation. wsgi is such a terrible api. */
-  status = 100 * (status_string[0] - '0') 
-          + 10 * (status_string[1] - '0')
-           + 1 * (status_string[2] - '0');
-  assert(0 <= status && status < 1000);
-  
-  ebb_client_write_status(self->client, status, status_string+4);
-  
-  PyObject *iterator = PyObject_GetIter(response_headers);
-  PyObject *header_pair;
-  char *field, *value;
-  while(( header_pair = PyIter_Next(iterator) )) {
-    if(!PyArg_ParseTuple(header_pair, "ss", &field, &value))
-      return NULL;
-    ebb_client_write_header(self->client, field, value);
-    Py_DECREF(header_pair);
-  }
-  
-  /* return write object */
-  Py_RETURN_NONE;
-}
 
 static PyObject* env_field(struct ebb_env_item *item)
 {
@@ -164,9 +188,7 @@ static py_client* py_client_new(ebb_client *client)
   py_client *self = PyObject_New(py_client, &py_client_t);
   if(self == NULL) return NULL;
   self->client = client;
-  
-  //if(0 < PyObject_SetAttrString((PyObject*)self, "environ", py_client_env(client)))
-  //  return NULL;
+  self->env = py_client_env(client);
   
   return self;
 }
@@ -174,62 +196,70 @@ static py_client* py_client_new(ebb_client *client)
 void request_cb(ebb_client *client, void *_)
 {
   PyEval_RestoreThread(libev_thread_state); /* acquire GIL for this thread */
-  
-  PyObject *environ, *start_response;
-  
+    
   py_client *pclient = py_client_new(client);
   assert(pclient != NULL);
-  //environ = PyObject_GetAttrString((PyObject*)pclient, "environ");  
-  environ = py_client_env(client);
-  assert(environ != NULL);
-  
-  start_response = PyObject_GetAttrString((PyObject*)pclient, "start_response");
-  assert(start_response != NULL);
-  
-  PyObject *arglist = Py_BuildValue("OO", environ, start_response);
-  assert(arglist != NULL);
   assert(application != NULL);
-  PyObject *body = PyEval_CallObject(application, arglist);
-  assert(body != NULL);
   
-  Py_DECREF(arglist);
-  Py_DECREF(environ);
-  
-  PyObject *iterator = PyObject_GetIter(body);
-  PyObject *body_item;
-  while (body_item = PyIter_Next(iterator)) {
-    char *body_string = PyString_AsString(body_item);
-    int body_length = PyString_Size(body_item);
-    /* Todo support streaming! */
-    ebb_client_write_body(client, body_string, body_length);
-    Py_DECREF(body_item);
+  PyObject *arglist = Py_BuildValue("(OO)", application, pclient);
+  assert(arglist != NULL);
+  PyObject *rv = PyEval_CallObject(py_request_cb, arglist);
+  if(rv == NULL) {
+    server_error = TRUE;
+    ebb_client_close(pclient->client);
+    return;
   }
   
-  ebb_client_release(client);
-  
+  Py_DECREF(arglist);
   Py_DECREF(pclient);
+  
   libev_thread_state = PyEval_SaveThread(); /* allow other python threads to run again */
 }
+
+static void
+check_stop (struct ev_loop *loop, struct ev_timer *w, int revents)
+{
+  if(PyErr_CheckSignals() < 0 || server_running == FALSE || server_error == TRUE) {
+    ev_timer_stop(loop, w);
+    ev_unloop(loop, EVUNLOOP_ALL);
+  }
+}
+
 
 
 static PyObject *process_connections(PyObject *_, PyObject *args)
 {
-  assert(application == NULL);
-  if(!PyArg_ParseTuple(args, "O", &application))
+  assert(py_request_cb == NULL);
+  if(!PyArg_ParseTuple(args, "OO", &application, &py_request_cb))
     return NULL;
   if(!PyCallable_Check(application)) {
     PyErr_SetString(PyExc_TypeError, "parameter must be callable");
     return NULL;
   }
+  if(!PyCallable_Check(py_request_cb)) {
+    PyErr_SetString(PyExc_TypeError, "parameter must be callable");
+    return NULL;
+  }
   Py_XINCREF(application);
+  Py_XINCREF(py_request_cb);
   
+  server_running = TRUE;
+  server_error = FALSE;
+  
+  ev_timer_init (&check_stop_watcher, check_stop, 0.5, 0.5);
+  ev_timer_start (loop, &check_stop_watcher);
   
   libev_thread_state = PyEval_SaveThread(); /* allow other threads to run */
   ev_loop(loop, 0);
   PyEval_RestoreThread(libev_thread_state); /* reacquire GIL */
   
+  /* TODO: exit properly */
+  if(server_error) return NULL;
+  //ebb_server_unlisten(&server);
   
+  Py_XDECREF(py_request_cb);
   Py_XDECREF(application);
+  py_request_cb = NULL;
   application = NULL;
   Py_RETURN_NONE;
 }
@@ -244,10 +274,16 @@ static PyObject *listen_on_port(PyObject *_, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *server_stop(PyObject *_)
+{
+  server_running = FALSE;
+  Py_RETURN_NONE;
+}
 
 static PyMethodDef ebb_module_methods[] = 
   { {"listen_on_port", (PyCFunction)listen_on_port, METH_VARARGS, NULL}
   , {"process_connections", (PyCFunction)process_connections, METH_VARARGS, NULL}
+  , {"server_stop", (PyCFunction)server_stop, METH_NOARGS, NULL}
   , {NULL, NULL, 0, NULL}
   };
 
@@ -289,6 +325,6 @@ PyMODINIT_FUNC initebb_ffi(void)
   DEF_GLOBAL(content_length, "CONTENT_LENGTH");
   DEF_GLOBAL(http_host, "HTTP_HOST");
   
-  loop = ev_default_loop(0);  
+  loop = ev_default_loop(0);
   ebb_server_init(&server, loop, request_cb, NULL);
 }
