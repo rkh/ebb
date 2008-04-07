@@ -350,11 +350,11 @@ static void client_init(ebb_client *client)
   client->keep_alive = FALSE;
   client->status_written = client->headers_written = client->body_written = FALSE;
   client->written = 0;
-  /* here we do not free the already allocated GString client->response_buffer
-   * that we're holding the response in. we reuse it again - presumably 
-   * because the backend is going to keep sending such long requests.
-   */
-  client->response_buffer->len = 0;
+  
+  if(client->response_buffer != NULL)
+    g_string_free(client->response_buffer, TRUE);
+  client->response_buffer = g_string_new("");
+  
   client->upload_filename = NULL;
   
   /* SETUP READ AND TIMEOUT WATCHERS */
@@ -432,7 +432,7 @@ void ebb_server_init( ebb_server *server
   int i;
   for(i=0; i < EBB_MAX_CLIENTS; i++) {
     server->clients[i].request_buffer = NULL;
-    server->clients[i].response_buffer = g_string_new("");
+    server->clients[i].response_buffer = NULL;
     server->clients[i].open = FALSE;
     server->clients[i].in_use = FALSE;
     server->clients[i].server = server;
@@ -454,9 +454,6 @@ void ebb_server_free(ebb_server *server)
 {
   ebb_server_unlisten(server);
   
-  int i; 
-  for(i=0; i < EBB_MAX_CLIENTS; i++)
-    g_string_free(server->clients[i].response_buffer, TRUE);
   if(server->port)
     free(server->port);
   if(server->socketpath)
@@ -581,6 +578,9 @@ void ebb_client_close(ebb_client *client)
       client->upload_filename = NULL;
     }
     client->ip = NULL;
+    
+    g_string_free(client->response_buffer, TRUE);
+    client->response_buffer = NULL;
     
     close(client->fd);
     client->open = FALSE;
