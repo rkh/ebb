@@ -29,7 +29,6 @@
 #define min(a,b) (a < b ? a : b)
 #define ramp(a) (a > 0 ? a : 0)
 
-static int server_socket_unix(const char *path, int access_mask);
 static void client_init(ebb_client *client);
 
 static void set_nonblock(int fd)
@@ -469,28 +468,42 @@ void ebb_server_unlisten(ebb_server *server)
     ebb_client *client;
     ev_io_stop(server->loop, &server->request_watcher);
     close(server->fd);
-    if(server->socketpath)
+    if(server->socketpath) {
       unlink(server->socketpath);
+      server->socketpath = NULL;
+    }
+    if(server->port) {
+      free(server->port);
+      server->port = NULL;
+    }
     server->open = FALSE;
   }
 }
 
+
 int ebb_server_listen_on_fd(ebb_server *server, const int sfd)
 {
   set_nonblock(sfd);
-
+  
+  if (listen(sfd, EBB_MAX_CLIENTS) < 0) {
+    perror("listen()");
+    return -1;
+  }
+  
   server->fd = sfd;
-  server->port = NULL;
+  assert(server->port == NULL);
+  assert(server->socketpath == NULL);
   assert(server->open == FALSE);
   server->open = TRUE;
-
+  
   server->request_watcher.data = server;
   ev_init (&server->request_watcher, on_request);
   ev_io_set (&server->request_watcher, server->fd, EV_READ | EV_ERROR);
   ev_io_start (server->loop, &server->request_watcher);
-
+  
   return server->fd;
 }
+
 
 int ebb_server_listen_on_port(ebb_server *server, const int port)
 {
@@ -503,8 +516,6 @@ int ebb_server_listen_on_port(ebb_server *server, const int port)
     perror("socket()");
     goto error;
   }
-  
-  set_nonblock(sfd);
   
   flags = 1;
   setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void *)&flags, sizeof(flags));
@@ -526,13 +537,10 @@ int ebb_server_listen_on_port(ebb_server *server, const int port)
     perror("bind()");
     goto error;
   }
-  if (listen(sfd, EBB_MAX_CLIENTS) < 0) {
-    perror("listen()");
-    goto error;
-  }
-
+  
   int ret = ebb_server_listen_on_fd(server, sfd);
   if (ret >= 0) {
+    assert(server->port == NULL);
     server->port = malloc(sizeof(char)*8); /* for easy access to the port */
     sprintf(server->port, "%d", port);
   }
@@ -543,14 +551,64 @@ error:
 }
 
 
-int ebb_server_listen_on_socket(ebb_server *server, const char *socketpath)
+int ebb_server_listen_on_unix_socket(ebb_server *server, const char *socketpath)
 {
-  // int fd = server_socket_unix(socketpath, 0755);
-  // if(fd < 0) return 0;
-  // server->socketpath = strdup(socketpath);
-  // server->fd = fd;
-  // server_listen(server);
-  // return fd;
+  int sfd = -1;
+  struct linger ling = {0, 0};
+  struct sockaddr_un addr;
+  struct stat tstat;
+  int flags =1;
+  int old_umask = -1;
+  int access_mask = 0777;
+  
+  if(( sfd = socket(AF_UNIX, SOCK_STREAM, 0) ) == -1) {
+    perror("socket()");
+    goto error;
+  }
+  
+  /* Clean up a previous socket file if we left it around */
+  if(lstat(socketpath, &tstat) == 0 && S_ISSOCK(tstat.st_mode))
+    unlink(socketpath);
+  
+  flags = 1;
+  setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void *)&flags, sizeof(flags));
+  setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, (void *)&flags, sizeof(flags));
+  setsockopt(sfd, SOL_SOCKET, SO_LINGER, (void *)&ling, sizeof(ling));
+
+  /*
+   * the memset call clears nonstandard fields in some impementations
+   * that otherwise mess things up.
+   */
+  memset(&addr, 0, sizeof(addr));
+  
+  addr.sun_family = AF_UNIX;
+  strcpy(addr.sun_path, socketpath);
+  old_umask = umask( ~(access_mask & 0777) );
+  
+  if( bind(sfd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+    perror("bind()");
+    goto error;
+  }
+  umask(old_umask);
+  
+  int ret = ebb_server_listen_on_fd(server, sfd);
+  if (ret >= 0) {
+    assert(server->socketpath == NULL);
+    server->socketpath = strdup(socketpath);
+  }
+  return ret;
+error:
+  if(sfd > 0) close(sfd);
+  return -1;
+}
+
+
+int ebb_server_clients_in_use_p(ebb_server *server)
+{
+  int i;
+  for(i = 0; i < EBB_MAX_CLIENTS; i++)
+    if(server->clients[i].in_use) return TRUE;
+  return FALSE;
 }
 
 
@@ -669,68 +727,4 @@ int ebb_client_read(ebb_client *client, char *buffer, int length)
     client->nread_from_body += read;
     return read;
   }
-}
-
-/* The following socket creation routines are modified and stolen from memcached */
-
-
-static int server_socket_unix(const char *path, int access_mask) {
-    int sfd;
-    struct linger ling = {0, 0};
-    struct sockaddr_un addr;
-    struct stat tstat;
-    int flags =1;
-    int old_umask;
-
-    if (!path) {
-        return -1;
-    }
-    
-    if ((sfd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-        perror("socket()");
-        return -1;
-    }
-    
-    if ((flags = fcntl(sfd, F_GETFL, 0)) < 0 ||
-        fcntl(sfd, F_SETFL, flags | O_NONBLOCK) < 0) {
-        perror("setting O_NONBLOCK");
-        close(sfd);
-        return -1;
-    }
-    
-    /*
-     * Clean up a previous socket file if we left it around
-     */
-    if (lstat(path, &tstat) == 0) {
-        if (S_ISSOCK(tstat.st_mode))
-            unlink(path);
-    }
-
-    flags = 1;
-    setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void *)&flags, sizeof(flags));
-    setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, (void *)&flags, sizeof(flags));
-    setsockopt(sfd, SOL_SOCKET, SO_LINGER, (void *)&ling, sizeof(ling));
-
-    /*
-     * the memset call clears nonstandard fields in some impementations
-     * that otherwise mess things up.
-     */
-    memset(&addr, 0, sizeof(addr));
-
-    addr.sun_family = AF_UNIX;
-    strcpy(addr.sun_path, path);
-    old_umask=umask( ~(access_mask&0777));
-    if (bind(sfd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-        perror("bind()");
-        close(sfd);
-        umask(old_umask);
-        return -1;
-    }
-    umask(old_umask);
-    if (listen(sfd, EBB_MAX_CLIENTS) == -1) {
-        perror("listen()");
-        close(sfd);
-        return -1;
-    }
-    return sfd;
 }

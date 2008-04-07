@@ -13,6 +13,10 @@ module Ebb
       fd = options[:fileno].to_i
       FFI::server_listen_on_fd(fd)
       log.puts "Ebb is listening on file descriptor #{fd}"
+    elsif options.has_key?(:unix_socket)
+      socketfile = options[:unix_socket]
+      FFI::server_listen_on_unix_socket(socketfile)
+      log.puts "Ebb is listening on unix socket #{socketfile}"
     else
       port = (options[:port] || 4001).to_i
       FFI::server_listen_on_port(port)

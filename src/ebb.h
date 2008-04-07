@@ -83,8 +83,9 @@ void ebb_server_init( ebb_server *server
                     );
 int ebb_server_listen_on_fd(ebb_server*, const int sfd);
 int ebb_server_listen_on_port(ebb_server*, const int port);
-int ebb_server_listen_on_socket(ebb_server*, const char *socketpath);
+int ebb_server_listen_on_unix_socket(ebb_server*, const char *socketpath);
 void ebb_server_unlisten(ebb_server*);
+int ebb_server_clients_in_use_p(ebb_server*);
 
 struct ebb_server {
   EBB_TCP_COMMON

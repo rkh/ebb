@@ -1,6 +1,6 @@
 require File.dirname(__FILE__) + '/helper'
 
-class BasicTest < ServerTest
+module BasicTests
   def test_get_bytes
     [1,10,1000].each do |i|
       response = get("/bytes/#{i}")
@@ -25,5 +25,22 @@ class BasicTest < ServerTest
       response = post("/test_post_length", 'C'*1024*i)
       assert_equal 200, response['status']
     end
+  end
+end
+
+class BasicTest < ServerTest
+  include BasicTests
+end
+
+class BasicTestFD < ServerTestFD
+  include BasicTests
+end
+
+class BasicTestUnixSocket < ServerTestSocket
+  include BasicTests
+  
+  def test_socket_file_exists
+    assert File.exists?(@socketfile)
+    assert File.readable?(@socketfile)
   end
 end

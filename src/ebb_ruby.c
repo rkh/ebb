@@ -57,13 +57,6 @@ static void detach_idle_watcher()
   ev_idle_stop(loop, &idle_watcher);
 }
 
-static int clients_in_use_p()
-{
-  int i;
-  for(i = 0; i < EBB_MAX_CLIENTS; i++)
-    if(server->clients[i].in_use) return TRUE;
-  return FALSE;
-}
 
 void request_cb(ebb_client *client, void *data)
 {
@@ -86,6 +79,14 @@ VALUE server_listen_on_port(VALUE _, VALUE port)
   return Qnil;
 }
 
+VALUE server_listen_on_unix_socket(VALUE _, VALUE socketfile)
+{
+  if(ebb_server_listen_on_unix_socket(server, StringValuePtr(socketfile)) < 0)
+    rb_sys_fail("Problem listening on unix socket");
+  return Qnil;
+}
+
+
 static struct timeval idle_timeout = { tv_sec: 0, tv_usec: 50000 };
 
 static void
@@ -96,7 +97,7 @@ idle_cb (struct ev_loop *loop, struct ev_idle *w, int revents) {
    * this hacky idle_cb
    */
   
-  if(clients_in_use_p()) {
+  if(ebb_server_clients_in_use_p(server)) {
     /* If ruby has control of any clients - that means there are some requests
      * still being processed inside of threads. We need to allow Ruby some
      * time to work on these threads so we call rb_thread_schedule()
@@ -296,6 +297,7 @@ void Init_ebb_ext()
   rb_define_singleton_method(mFFI, "server_process_connections", server_process_connections, 0);
   rb_define_singleton_method(mFFI, "server_listen_on_fd", server_listen_on_fd, 1);
   rb_define_singleton_method(mFFI, "server_listen_on_port", server_listen_on_port, 1);
+  rb_define_singleton_method(mFFI, "server_listen_on_unix_socket", server_listen_on_unix_socket, 1);
   rb_define_singleton_method(mFFI, "server_unlisten", server_unlisten, 0);
   rb_define_singleton_method(mFFI, "server_open?", server_open, 0);
   rb_define_singleton_method(mFFI, "server_waiting_clients", server_waiting_clients, 0);

@@ -98,3 +98,27 @@ class ServerTestFD < ServerTest
   end
 end
 
+class ServerTestSocket < ServerTest
+  def get(path)
+    socket = UNIXSocket.open(@socketfile)
+    socket.write("GET #{path} HTTP/1.0\r\n")
+    response = ""
+    while chunk = socket.recv(100)
+      response << chunk
+    end
+    env = JSON.parse(response)
+  ensure
+    socket.close if socket
+  end
+  
+  def setup
+    @socketfile = '/tmp/ebb_socket.sock'
+    Thread.new { Ebb.start_server(HelperApp.new, :unix_socket => @socketfile) }
+    sleep 0.1 until Ebb.running?
+  end
+
+  def teardown
+    super
+  end
+end
+
