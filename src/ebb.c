@@ -483,12 +483,12 @@ void ebb_server_unlisten(ebb_server *server)
 
 int ebb_server_listen_on_fd(ebb_server *server, const int sfd)
 {
-  set_nonblock(sfd);
-  
   if (listen(sfd, EBB_MAX_CLIENTS) < 0) {
     perror("listen()");
     return -1;
   }
+  
+  set_nonblock(sfd); /* XXX: superfluous? */
   
   server->fd = sfd;
   assert(server->port == NULL);
@@ -567,8 +567,9 @@ int ebb_server_listen_on_unix_socket(ebb_server *server, const char *socketpath)
   }
   
   /* Clean up a previous socket file if we left it around */
-  if(lstat(socketpath, &tstat) == 0 && S_ISSOCK(tstat.st_mode))
+  if(lstat(socketpath, &tstat) == 0 && S_ISSOCK(tstat.st_mode)) {
     unlink(socketpath);
+  }
   
   flags = 1;
   setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void *)&flags, sizeof(flags));
@@ -585,7 +586,7 @@ int ebb_server_listen_on_unix_socket(ebb_server *server, const char *socketpath)
   strcpy(addr.sun_path, socketpath);
   old_umask = umask( ~(access_mask & 0777) );
   
-  if( bind(sfd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+  if(bind(sfd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
     perror("bind()");
     goto error;
   }

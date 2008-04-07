@@ -101,18 +101,32 @@ end
 class ServerTestSocket < ServerTest
   def get(path)
     socket = UNIXSocket.open(@socketfile)
-    socket.write("GET #{path} HTTP/1.0\r\n")
+    socket.write("GET #{path} HTTP/1.0\r\n\r\n")
     response = ""
-    while chunk = socket.recv(100)
+    while chunk = socket.read(100)
       response << chunk
     end
-    env = JSON.parse(response)
+    body = response.split("\r\n\r\n")[1]
+    env = JSON.parse(body)
+  ensure
+    socket.close if socket
+  end
+  
+  def post(path, data)
+    socket = UNIXSocket.open(@socketfile)
+    socket.write("POST #{path} HTTP/1.0\r\nContent-Length: #{data.length}\r\n\r\n#{data}")
+    response = ""
+    while chunk = socket.read(100)
+      response << chunk
+    end
+    body = response.split("\r\n\r\n")[1]
+    env = JSON.parse(body)
   ensure
     socket.close if socket
   end
   
   def setup
-    @socketfile = '/tmp/ebb_socket.sock'
+    @socketfile = '/tmp/ebb_unittest.sock'
     Thread.new { Ebb.start_server(HelperApp.new, :unix_socket => @socketfile) }
     sleep 0.1 until Ebb.running?
   end

@@ -77,5 +77,6 @@ end
 
 if $0 == __FILE__
   require DIR + '/../ruby_lib/ebb'
-  server = Ebb::start_server(SimpleApp.new, :port => 4001)
+  server = Ebb::start_server(SimpleApp.new, :unix_socket => '/tmp/ebb.sock')
+  #server = Ebb::start_server(SimpleApp.new, :port => 4001)
 end
