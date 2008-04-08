@@ -33,18 +33,58 @@ def should_keep_alive(env):
       return True
   return False
 
+class StartResponse:
+  def __init__(self, client):
+    self.client = client
+  
+  def __call__(self, status_string, response_headers, exc_info=None):
+    # status_string should be something like "200 OK" or "404 Not Found"
+    # need to split this into an integer and human readable string for ebb
+    match = re.search('(\d+) (.*)', status_string)
+    status = int(match.group(1))
+    reason_phrase = match.group(2)
+    
+    # write the status
+    self.client.write_status(status, reason_phrase)
+    
+    headers = Headers(response_headers)
+    
+    # Decide if we should keep the connection alive or not
+    if not headers.has_key('Connection'):
+      if headers.has_key('Content-Length') and should_keep_alive(self.client.env()):
+        headers['Connection'] = 'Keep-Alive'
+      else:
+        headers['Connection'] = 'close'
+
+    # write the headers
+    for field, value in headers.items():
+      self.client.write_header(field, value)
+    
+    # This should return a write() object. but it's stupid and I don't want
+    # to support it
+    return None
+
+def request_wsgi1(app, client):
+  body = app.__call__(client.env(), StartResponse(client))
+  
+  # write the body
+  for part in body:
+    client.write_body(part)
+  
+  client.release()
+  
 # For WSGI 2.0
-def request_cb(app, client):  
+def request_wsgi2(app, client):  
   status_string, header_list, body = app.__call__(client.env())
   
   # status_string should be something like "200 OK" or "404 Not Found"
   # need to split this into an integer and human readable string for ebb
   match = re.search('(\d+) (.*)', status_string)
   status = int(match.group(1))
-  status_human = match.group(2)
+  reason_phrase = match.group(2)
   
   # write the status
-  client.write_status(status, status_human)
+  client.write_status(status, reason_phrase)
   
   headers = Headers(header_list)
   if not headers.has_key('Content-Length'):
@@ -60,7 +100,8 @@ def request_cb(app, client):
   # write the headers
   for field, value in headers.items():
     client.write_header(field, value)
-    
+  
+  # write the body
   for part in body:
     client.write_body(part)
   
@@ -84,4 +125,9 @@ def start_server(app, args = {}):
     ebb_ffi.listen_on_port(port)
     print "Ebb is listening at http://0.0.0.0:%d/" % port
   
-  ebb_ffi.process_connections(app, request_cb)
+  if args.has_key('wsgi_version') and args['wsgi_version'] >= (2,0):
+    cb = request_wsgi2
+  else:
+    cb = request_wsgi1
+  
+  ebb_ffi.process_connections(app, cb)

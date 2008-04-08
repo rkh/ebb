@@ -10,4 +10,14 @@ def simple_app(environ):
   body = ["Hello world!\n"]
   return([status, headers, body])
 
-ebb.start_server(simple_app, {'unix_socket': '/tmp/ebb.sock'})
+
+def simple_wsgi1_app(environ, start_response):
+  status = '200 OK'
+  headers = [('Content-type','text/plain')]
+  body = ["Hello world!\n"]
+  
+  start_response(status, headers)
+  return body
+
+
+ebb.start_server(simple_wsgi1_app)

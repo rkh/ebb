@@ -238,11 +238,11 @@ VALUE client_read_input(VALUE _, VALUE client, VALUE size)
   return string;
 }
 
-VALUE client_write_status(VALUE _, VALUE client, VALUE status, VALUE human_status)
+VALUE client_write_status(VALUE _, VALUE client, VALUE status, VALUE reason_phrase)
 {
   ebb_client *_client;
   Data_Get_Struct(client, ebb_client, _client);
-  ebb_client_write_status(_client, FIX2INT(status), StringValuePtr(human_status));
+  ebb_client_write_status(_client, FIX2INT(status), StringValuePtr(reason_phrase));
   return Qnil;
 }
 

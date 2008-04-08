@@ -28,7 +28,7 @@ void ebb_client_close(ebb_client*);
 /* user MUST call this function on each client passed by the request_cb */
 void ebb_client_release(ebb_client*);
 int ebb_client_read(ebb_client *client, char *buffer, int length);
-void ebb_client_write_status(ebb_client*, int status, const char *human_status);
+void ebb_client_write_status(ebb_client*, int status, const char *reason_phrase);
 void ebb_client_write_header(ebb_client*, const char *field, const char *value);
 void ebb_client_write_body(ebb_client*, const char *data, int length);
 /* int ebb_client_should_keep_alive(ebb_client*); */

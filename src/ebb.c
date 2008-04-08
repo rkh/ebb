@@ -648,7 +648,7 @@ void ebb_client_close(ebb_client *client)
 }
 
 
-void ebb_client_write_status(ebb_client *client, int status, const char *human_status)
+void ebb_client_write_status(ebb_client *client, int status, const char *reason_phrase)
 {
   assert(client->in_use);
   if(!client->open) return;
@@ -656,7 +656,7 @@ void ebb_client_write_status(ebb_client *client, int status, const char *human_s
   g_string_append_printf( client->response_buffer
                         , "HTTP/1.1 %d %s\r\n"
                         , status
-                        , human_status
+                        , reason_phrase
                         );
   client->status_written = TRUE;
 }
