@@ -7,7 +7,7 @@ def simple_app(environ):
   """Simplest possible application object"""
   status = '200 OK'
   headers = [('Content-type','text/plain')]
-  body = ["Hello world!\n", "Something else!", "blllllaaaaaaaah\n"]
+  body = ["Hello world!\n"]
   return([status, headers, body])
 
 ebb.start_server(simple_app, {'port': 4001})

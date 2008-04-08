@@ -31,13 +31,14 @@ int ebb_client_read(ebb_client *client, char *buffer, int length);
 void ebb_client_write_status(ebb_client*, int status, const char *human_status);
 void ebb_client_write_header(ebb_client*, const char *field, const char *value);
 void ebb_client_write_body(ebb_client*, const char *data, int length);
+/* int ebb_client_should_keep_alive(ebb_client*); */
 
 struct ebb_env_item {
- int type;
- const char *field;
- int field_length;
- const char *value;
- int value_length;
+  int type;
+  const char *field;
+  int field_length;
+  const char *value;
+  int value_length;
 };
 
 struct ebb_client {

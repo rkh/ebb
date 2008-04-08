@@ -328,10 +328,11 @@ static void client_init(ebb_client *client)
     client->fd = fd;
   }
   
-  /* Address */
-  client->ip = inet_ntoa(client->sockaddr.sin_addr);
-  
   set_nonblock(client->fd);
+  
+  /* IP Address */
+  if(client->server->port)
+    client->ip = inet_ntoa(client->sockaddr.sin_addr);  
   
   /* INITIALIZE http_parser */
   http_parser_init(&client->parser);
@@ -729,3 +730,14 @@ int ebb_client_read(ebb_client *client, char *buffer, int length)
     return read;
   }
 }
+
+// int ebb_client_should_keep_alive(ebb_client*)
+// {
+//   /* TODO - return boolean  */
+//     if env['HTTP_VERSION'] == 'HTTP/1.0' 
+//       return true if env['HTTP_CONNECTION'] =~ /Keep-Alive/i
+//     else
+//       return true unless env['HTTP_CONNECTION'] =~ /close/i
+//     end
+//     false
+// }

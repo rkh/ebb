@@ -53,7 +53,7 @@ hacking at the moment! :)
 
 ## Speed
 
-Because Ebb-Ruby handles most of the processing in C, it is able to do work
+Because Ebb handles most of the processing in C, it is able to do work
 often times more efficiently than other Ruby language web servers.
 
 ![Benchmark](http://s3.amazonaws.com/four.livejournal/20080311/ebb.png)
@@ -70,17 +70,14 @@ Contributions (patches, criticism, advice) are very welcome!
 Please send all to to 
 [the mailing list](http://groups.google.com/group/ebbebb).
 
-The source code
-is hosted [github](http://github.com/ry/ebb/tree/master). It can be retrieved 
-by executing
+The source code is hosted [github](http://github.com/ry/ebb/tree/master). It
+can be retrieved by executing
 
     git clone git://github.com/ry/ebb.git
 
 Here are some features that I would like to add:
 * HTTP 1.1 Expect/Continue (RFC 2616, sections 8.2.3 and 10.1.1)
-* A parser for multipart/form-data
-* Optimize and clean up upload handling
-* Option to listen on unix sockets instead of TCP
+* A parser for multipart/form-data (only for optimization - this functionality is currently handled at the framework level)
 * Python binding
 
 ## (The MIT) License
