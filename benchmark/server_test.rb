@@ -115,10 +115,8 @@ class ServerTest
     case name
     when 'emongrel'
       @pid = fork { start_emongrel }
-    when 'ebb_threaded'
-      @pid = fork { start_ebb_threaded }
-    when 'ebb_sequential'
-      @pid = fork { start_ebb_sequential }
+    when 'ebb'
+      @pid = fork { start_ebb }
     when 'mongrel'
       @pid = fork { start_mongrel }
     when 'thin'
@@ -139,15 +137,11 @@ class ServerTest
     Rack::Handler::Mongrel.run(app, :Host => '0.0.0.0', :Port => @port.to_i)
   end
   
-  def start_ebb_threaded
+  def start_ebb
     require File.dirname(__FILE__) + '/../ruby_lib/ebb'
-    server = Ebb::start_server(app, :port => @port, :threaded_processing => true)
+    server = Ebb::start_server(app, :port => @port)
   end
 
-  def start_ebb_sequential
-    require File.dirname(__FILE__) + '/../ruby_lib/ebb'
-    server = Ebb::start_server(app, :port => @port, :threaded_processing => false)
-  end
   
   def start_mongrel
    require 'mongrel'
@@ -186,7 +180,6 @@ class ServerTest
     end
     successful_requests = requests_completed - failed_requests
     puts "  #{rps} req/sec (#{requests_completed} total, #{failed_requests} failed in #{"%.2f" % time_taken} seconds)"
-    puts "  #{"%.2f" % (successful_requests/time_taken)} successful req/sec"
     
     {
       :server => @name,
