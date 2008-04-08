@@ -68,11 +68,20 @@ def request_cb(app, client):
   
   
 def start_server(app, args = {}):
-  if args['port']:
-    ebb_ffi.listen_on_port(int(args['port']))
+  if args.has_key('unix_socket'):
+    socketfile = args['unix_socket']
+    ebb_ffi.listen_on_unix_socket(socketfile)
+    print "Ebb is listening on unix socket %s" % socketfile
+  elif args.has_key('fileno'):
+    fileno = int(args['fileno'])
+    ebb_ffi.listen_on_fd(fileno)
+    print "Ebb is listening on fd %d" % fileno
   else:
-    print "no port given!"
-    exit(1)
+    if args.has_key('port'):
+      port = int(args['port']) 
+    else:
+      port = 4001
+    ebb_ffi.listen_on_port(port)
+    print "Ebb is listening at http://0.0.0.0:%d/" % port
   
-  print "Ebb listening on port %d" % args['port']
   ebb_ffi.process_connections(app, request_cb)

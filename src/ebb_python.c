@@ -264,24 +264,40 @@ static PyObject *process_connections(PyObject *_, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *listen_on_port(PyObject *_, PyObject *args)
-{
-  int port;
-  if(!PyArg_ParseTuple(args, "i", &port))
-    return NULL;  
-  ebb_server_init(&server, loop, request_cb, NULL);
-  ebb_server_listen_on_port(&server, port);
-  Py_RETURN_NONE;
-}
-
 static PyObject *server_stop(PyObject *_)
 {
   server_running = FALSE;
   Py_RETURN_NONE;
 }
 
+static PyObject *listen_on_port(PyObject *_, PyObject *args)
+{
+  int port;
+  if(!PyArg_ParseTuple(args, "i", &port)) return NULL;  
+  ebb_server_listen_on_port(&server, port);
+  Py_RETURN_NONE;
+}
+
+static PyObject *listen_on_fd(PyObject *_, PyObject *args)
+{
+  int fd;
+  if(!PyArg_ParseTuple(args, "i", &fd)) return NULL;  
+  ebb_server_listen_on_fd(&server, fd);
+  Py_RETURN_NONE;
+}
+
+static PyObject *listen_on_unix_socket(PyObject *_, PyObject *args)
+{
+  char *socketfile;
+  if(!PyArg_ParseTuple(args, "s", &socketfile)) return NULL;  
+  ebb_server_listen_on_unix_socket(&server, socketfile);
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef ebb_module_methods[] = 
   { {"listen_on_port", (PyCFunction)listen_on_port, METH_VARARGS, NULL}
+  , {"listen_on_fd", (PyCFunction)listen_on_fd, METH_VARARGS, NULL}
+  , {"listen_on_unix_socket", (PyCFunction)listen_on_unix_socket, METH_VARARGS, NULL}
   , {"process_connections", (PyCFunction)process_connections, METH_VARARGS, NULL}
   , {"server_stop", (PyCFunction)server_stop, METH_NOARGS, NULL}
   , {NULL, NULL, 0, NULL}

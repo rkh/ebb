@@ -10,4 +10,4 @@ def simple_app(environ):
   body = ["Hello world!\n"]
   return([status, headers, body])
 
-ebb.start_server(simple_app, {'port': 4001})
+ebb.start_server(simple_app, {'unix_socket': '/tmp/ebb.sock'})
