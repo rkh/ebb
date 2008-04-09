@@ -227,6 +227,17 @@ module Ebb
   }.freeze
 end
 
+
+module Rack
+  module Handler
+    module Ebb
+      def self.run(app, options={})
+        ::Ebb.start_server(app, options)
+      end
+    end
+  end
+end
+
 # cause i don't want to create an array
 def min(a,b)
   a > b ? b : a
