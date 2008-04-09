@@ -1,30 +1,40 @@
 /*
- * Copyright (c) 2007 Marc Alexander Lehmann <libev@schmorp.de>
+ * libev native API header
+ *
+ * Copyright (c) 2007,2008 Marc Alexander Lehmann <libev@schmorp.de>
  * All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
+ * Redistribution and use in source and binary forms, with or without modifica-
+ * tion, are permitted provided that the following conditions are met:
+ * 
+ *   1.  Redistributions of source code must retain the above copyright notice,
+ *       this list of conditions and the following disclaimer.
+ * 
+ *   2.  Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MER-
+ * CHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO
+ * EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPE-
+ * CIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+ * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTH-
+ * ERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *
- *     * Redistributions in binary form must reproduce the above
- *       copyright notice, this list of conditions and the following
- *       disclaimer in the documentation and/or other materials provided
- *       with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * Alternatively, the contents of this file may be used under the terms of
+ * the GNU General Public License ("GPL") version 2 or any later version,
+ * in which case the provisions of the GPL are applicable instead of
+ * the above. If you wish to allow the use of your version of this file
+ * only under the terms of the GPL and not to allow others to use your
+ * version of this file under the BSD license, indicate your decision
+ * by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL. If you do not delete the
+ * provisions above, a recipient may use your version of this file under
+ * either the BSD or the GPL.
  */
 
 #ifndef EV_H__
@@ -66,6 +76,15 @@ typedef double ev_tstamp;
 
 #ifndef EV_EMBED_ENABLE
 # define EV_EMBED_ENABLE 1
+#endif
+
+#ifndef EV_ASYNC_ENABLE
+# define EV_ASYNC_ENABLE 1
+#endif
+
+#ifndef EV_ATOMIC_T
+# include <signal.h>
+# define EV_ATOMIC_T sig_atomic_t volatile
 #endif
 
 /*****************************************************************************/
@@ -110,6 +129,7 @@ struct ev_loop;
 #define EV_CHECK    0x00008000L /* event loop finished poll */
 #define EV_EMBED    0x00010000L /* embedded event loop needs sweep */
 #define EV_FORK     0x00020000L /* event loop resumed in child */
+#define EV_ASYNC    0x00040000L /* async intra-loop signal */
 #define EV_ERROR    0x80000000L /* sent when an error occurs */
 
 /* can be used to add custom fields to all watchers, while losing binary compatibility */
@@ -120,7 +140,7 @@ struct ev_loop;
 # define EV_PROTOTYPES 1
 #endif
 
-#define EV_VERSION_MAJOR 2
+#define EV_VERSION_MAJOR 3
 #define EV_VERSION_MINOR 0
 
 #ifndef EV_CB_DECLARE
@@ -217,6 +237,7 @@ typedef struct ev_child
 {
   EV_WATCHER_LIST (ev_child)
 
+  int flags;   /* private */
   int pid;     /* ro */
   int rpid;    /* rw, holds the received pid */
   int rstatus; /* rw, holds the exit status, use the macros from sys/wait.h */
@@ -296,6 +317,19 @@ typedef struct ev_embed
 } ev_embed;
 #endif
 
+#if EV_ASYNC_ENABLE
+/* invoked when somebody calls ev_async_send on the watcher */
+/* revent EV_ASYNC */
+typedef struct ev_async
+{
+  EV_WATCHER (ev_async)
+
+  EV_ATOMIC_T sent; /* private */
+} ev_async;
+
+# define ev_async_pending(w) (((w)->sent + 0)
+#endif
+
 /* the presence of this union forces similar struct layout */
 union ev_any_watcher
 {
@@ -320,6 +354,9 @@ union ev_any_watcher
 #endif
 #if EV_EMBED_ENABLE
   struct ev_embed embed;
+#endif
+#if EV_ASYND_ENABLE
+  struct ev_async async;
 #endif
 };
 
@@ -397,6 +434,18 @@ ev_now (void)
 }
 # endif
 
+static int
+ev_is_default_loop (EV_P)
+{
+#if EV_MULTIPLICITY
+  extern struct ev_loop *ev_default_loop_ptr;
+
+  return !!(EV_A == ev_default_loop_ptr);
+#else
+  return 1;
+#endif
+}
+
 void ev_default_destroy (void); /* destroy the default loop */
 /* this needs to be called after fork, to duplicate the default loop */
 /* if you create alternative loops you have to call ev_loop_fork on them */
@@ -447,25 +496,27 @@ void ev_once (EV_P_ int fd, int events, ev_tstamp timeout, void (*cb)(int revent
 #define ev_timer_set(ev,after_,repeat_)     do { (ev)->at = (after_); (ev)->repeat = (repeat_); } while (0)
 #define ev_periodic_set(ev,ofs_,ival_,res_) do { (ev)->offset = (ofs_); (ev)->interval = (ival_); (ev)->reschedule_cb= (res_); } while (0)
 #define ev_signal_set(ev,signum_)           do { (ev)->signum = (signum_); } while (0)
-#define ev_child_set(ev,pid_)               do { (ev)->pid = (pid_); } while (0)
+#define ev_child_set(ev,pid_,trace_)        do { (ev)->pid = (pid_); (ev)->flags = !!(trace_); } while (0)
 #define ev_stat_set(ev,path_,interval_)     do { (ev)->path = (path_); (ev)->interval = (interval_); (ev)->wd = -2; } while (0)
 #define ev_idle_set(ev)                     /* nop, yes, this is a serious in-joke */
 #define ev_prepare_set(ev)                  /* nop, yes, this is a serious in-joke */
 #define ev_check_set(ev)                    /* nop, yes, this is a serious in-joke */
 #define ev_embed_set(ev,other_)             do { (ev)->other = (other_); } while (0)
 #define ev_fork_set(ev)                     /* nop, yes, this is a serious in-joke */
+#define ev_async_set(ev)                    do { (ev)->sent = 0; } while (0)
 
 #define ev_io_init(ev,cb,fd,events)         do { ev_init ((ev), (cb)); ev_io_set ((ev),(fd),(events)); } while (0)
 #define ev_timer_init(ev,cb,after,repeat)   do { ev_init ((ev), (cb)); ev_timer_set ((ev),(after),(repeat)); } while (0)
 #define ev_periodic_init(ev,cb,at,ival,res) do { ev_init ((ev), (cb)); ev_periodic_set ((ev),(at),(ival),(res)); } while (0)
 #define ev_signal_init(ev,cb,signum)        do { ev_init ((ev), (cb)); ev_signal_set ((ev), (signum)); } while (0)
-#define ev_child_init(ev,cb,pid)            do { ev_init ((ev), (cb)); ev_child_set ((ev),(pid)); } while (0)
-#define ev_stat_init(ev,cb,path,interval)   do { ev_init ((ev), (cb)); ev_path_set ((ev),(path),(interval)); } while (0)
+#define ev_child_init(ev,cb,pid,trace)      do { ev_init ((ev), (cb)); ev_child_set ((ev),(pid),(trace)); } while (0)
+#define ev_stat_init(ev,cb,path,interval)   do { ev_init ((ev), (cb)); ev_stat_set ((ev),(path),(interval)); } while (0)
 #define ev_idle_init(ev,cb)                 do { ev_init ((ev), (cb)); ev_idle_set ((ev)); } while (0)
 #define ev_prepare_init(ev,cb)              do { ev_init ((ev), (cb)); ev_prepare_set ((ev)); } while (0)
 #define ev_check_init(ev,cb)                do { ev_init ((ev), (cb)); ev_check_set ((ev)); } while (0)
 #define ev_embed_init(ev,cb,other)          do { ev_init ((ev), (cb)); ev_embed_set ((ev),(other)); } while (0)
 #define ev_fork_init(ev,cb)                 do { ev_init ((ev), (cb)); ev_fork_set ((ev)); } while (0)
+#define ev_async_init(ev,cb)                do { ev_init ((ev), (cb)); ev_async_set ((ev)); } while (0)
 
 #define ev_is_pending(ev)                   (0 + ((ev_watcher *)(void *)(ev))->pending) /* ro, true when watcher is waiting for callback invocation */
 #define ev_is_active(ev)                    (0 + ((ev_watcher *)(void *)(ev))->active) /* ro, true when the watcher has been started */
@@ -539,6 +590,12 @@ void ev_fork_stop      (EV_P_ ev_fork *w);
 void ev_embed_start    (EV_P_ ev_embed *w);
 void ev_embed_stop     (EV_P_ ev_embed *w);
 void ev_embed_sweep    (EV_P_ ev_embed *w);
+# endif
+
+# if EV_ASYNC_ENABLE
+void ev_async_start    (EV_P_ ev_async *w);
+void ev_async_stop     (EV_P_ ev_async *w);
+void ev_async_send     (EV_P_ ev_async *w);
 # endif
 
 #endif
