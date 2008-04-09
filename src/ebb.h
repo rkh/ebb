@@ -51,10 +51,10 @@ struct ebb_client {
   
   char *request_buffer;
   ev_io read_watcher;
-  size_t read, nread_from_body;
+  size_t read;
   
-  char *upload_filename;
-  FILE *upload_file;
+  char *body_head;
+  size_t body_head_len;
   
   ev_io write_watcher;
   GString *response_buffer;

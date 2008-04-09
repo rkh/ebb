@@ -99,6 +99,7 @@ module Ebb
   end
   
   class Client
+    attr_reader :fd, :body_head, :content_length
     BASE_ENV = {
       'SERVER_NAME' => '0.0.0.0',
       'SCRIPT_NAME' => '',
@@ -154,35 +155,33 @@ module Ebb
   
   class RequestBody
     def initialize(client)
-      @client = client
+      @content_length = client.content_length
+      if client.body_head
+        @body_head = StringIO.new(client.body_head)
+        if @body_head.length < @content_length
+          @socket = IO.new(client.fd)
+        end
+      end
+      @total_read = 0
     end
     
     def read(len = nil)
-      if @io
-        @io.read(len)
-      else
-        if len.nil?
-          s = ''
-          while(chunk = read(10*1024)) do
-            s << chunk
-          end
-          s
-        else
-          FFI::client_read_input(@client, len)
-        end
+      to_read =  len.nil? ? @content_length - @total_read : min(len, @content_length - @total_read)
+      return nil if to_read == 0 or @body_head.nil?
+      unless out = @body_head.read(to_read)
+        return nil if @socket.nil?
+        out = @socket.read(to_read)
       end
+      @total_read += out.length
+      out
     end
     
     def gets
-      io.gets
+      raise NotImplemented
     end
     
     def each(&block)
-      io.each(&block)
-    end
-    
-    def io
-      @io ||= StringIO.new(read)
+      raise NotImplemented
     end
   end
   
@@ -226,4 +225,9 @@ module Ebb
     504  => 'Gateway Time-out', 
     505  => 'HTTP Version not supported'
   }.freeze
+end
+
+# cause i don't want to create an array
+def min(a,b)
+  a > b ? b : a
 end

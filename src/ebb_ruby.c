@@ -61,6 +61,12 @@ static void detach_idle_watcher()
 void request_cb(ebb_client *client, void *data)
 {
   VALUE rb_client = Data_Wrap_Struct(cClient, 0, 0, client);
+  
+  rb_iv_set(rb_client, "@fd", INT2FIX(client->fd));
+  rb_iv_set(rb_client, "@content_length", INT2FIX(client->parser.content_length));
+  if(client->body_head_len > 0)
+    rb_iv_set(rb_client, "@body_head", rb_str_new(client->body_head, client->body_head_len));
+  
   rb_ary_push(waiting_clients, rb_client);
   attach_idle_watcher();
 }
@@ -214,30 +220,6 @@ VALUE client_env(VALUE _, VALUE rb_client)
   return env;
 }
 
-
-VALUE client_read_input(VALUE _, VALUE client, VALUE size)
-{
-  ebb_client *_client;
-  GString *_string;
-  VALUE string;
-  int _size = FIX2INT(size);
-  Data_Get_Struct(client, ebb_client, _client);
-  
-  string = rb_str_buf_new( _size );
-  int nread = ebb_client_read(_client, RSTRING_PTR(string), _size);
-#if RUBY_VERSION_CODE < 190
-  RSTRING(string)->len = nread;
-#else
-  rb_str_set_len(string, nread);
-#endif
-  
-  if(nread < 0)
-    rb_raise(rb_eRuntimeError,"There was a problem reading from input (bad tmp file?)");
-  if(nread == 0)
-    return Qnil;
-  return string;
-}
-
 VALUE client_write_status(VALUE _, VALUE client, VALUE status, VALUE reason_phrase)
 {
   ebb_client *_client;
@@ -303,7 +285,6 @@ void Init_ebb_ext()
   rb_define_singleton_method(mFFI, "server_waiting_clients", server_waiting_clients, 0);
   
   cClient = rb_define_class_under(mEbb, "Client", rb_cObject);
-  rb_define_singleton_method(mFFI, "client_read_input", client_read_input, 2);
   rb_define_singleton_method(mFFI, "client_write_status", client_write_status, 3);
   rb_define_singleton_method(mFFI, "client_write_header", client_write_header, 3);
   rb_define_singleton_method(mFFI, "client_write_body", client_write_body, 2);
