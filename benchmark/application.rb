@@ -20,6 +20,10 @@ class SimpleApp
     @count = 0
   end
   
+  def deferred?(env)
+    false
+  end
+  
   def call(env)
     path = env['PATH_INFO'] || env['REQUEST_URI']
     commands = path.split('/')
