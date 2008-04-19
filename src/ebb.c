@@ -524,7 +524,21 @@ void ebb_client_release(ebb_client *client)
 {
   assert(client->in_use);
   client->in_use = FALSE;
+  
+  if(client->headers_written == FALSE) {
+    g_string_append(client->response_buffer, "\r\n");
+    client->headers_written = TRUE;
+  }
   client->body_written = TRUE;
+  
+  /* If the write_watcher isn't yet active, then start it. It could be that
+   * we're streaming and the watcher has been stopped. In that case we 
+   * start it again since we have more to write. */
+  if(ev_is_active(&client->write_watcher) == FALSE) {
+    set_nonblock(client->fd);
+    ev_io_start(client->server->loop, &client->write_watcher);
+  }
+  
   if(client->written == client->response_buffer->len)
     ebb_client_close(client);
 }
