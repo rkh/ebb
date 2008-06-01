@@ -93,7 +93,7 @@ VALUE server_listen_on_unix_socket(VALUE _, VALUE socketfile)
 }
 
 
-static struct timeval idle_timeout = { tv_sec: 0, tv_usec: 50000 };
+static struct timeval idle_timeout = { 0, 50000 };
 
 static void
 idle_cb (struct ev_loop *loop, struct ev_idle *w, int revents) {
