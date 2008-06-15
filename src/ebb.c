@@ -226,7 +226,7 @@ static void client_init(ebb_client *client)
    */
   if(!client->open) {
     /* DO SOCKET STUFF */
-    socklen_t len;
+    socklen_t len = sizeof(struct sockaddr); 
     int fd = accept(client->server->fd, (struct sockaddr*)&(client->sockaddr), &len);
     if(fd < 0) {
       perror("accept()");
