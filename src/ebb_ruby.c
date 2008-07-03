@@ -58,7 +58,7 @@ static void detach_idle_watcher()
 }
 
 
-void request_cb(ebb_client *client, void *data)
+static void request_cb(ebb_client *client, void *data)
 {
   VALUE rb_client = Data_Wrap_Struct(cClient, 0, 0, client);
   
@@ -71,21 +71,21 @@ void request_cb(ebb_client *client, void *data)
   attach_idle_watcher();
 }
 
-VALUE server_listen_on_fd(VALUE _, VALUE sfd)
+static VALUE server_listen_on_fd(VALUE _, VALUE sfd)
 {
   if(ebb_server_listen_on_fd(server, FIX2INT(sfd)) < 0)
     rb_sys_fail("Problem listening on FD");
   return Qnil;
 }
 
-VALUE server_listen_on_port(VALUE _, VALUE port)
+static VALUE server_listen_on_port(VALUE _, VALUE port)
 {
   if(ebb_server_listen_on_port(server, FIX2INT(port)) < 0)
     rb_sys_fail("Problem listening on port");
   return Qnil;
 }
 
-VALUE server_listen_on_unix_socket(VALUE _, VALUE socketfile)
+static VALUE server_listen_on_unix_socket(VALUE _, VALUE socketfile)
 {
   if(ebb_server_listen_on_unix_socket(server, StringValuePtr(socketfile)) < 0)
     rb_sys_fail("Problem listening on unix socket");
@@ -132,7 +132,7 @@ idle_cb (struct ev_loop *loop, struct ev_idle *w, int revents) {
   }
 }
 
-VALUE server_process_connections(VALUE _)
+static VALUE server_process_connections(VALUE _)
 {
   TRAP_BEG;
   ev_loop(loop, EVLOOP_ONESHOT);
@@ -141,23 +141,23 @@ VALUE server_process_connections(VALUE _)
 }
 
 
-VALUE server_unlisten(VALUE _)
+static VALUE server_unlisten(VALUE _)
 {
   ebb_server_unlisten(server);
   return Qnil;
 }
 
-VALUE server_open(VALUE _)
+static VALUE server_open(VALUE _)
 {
   return server->open ? Qtrue : Qfalse;
 }
 
-VALUE server_waiting_clients(VALUE _)
+static VALUE server_waiting_clients(VALUE _)
 {
   return waiting_clients;
 }
 
-VALUE env_field(struct ebb_env_item *item)
+static VALUE env_field(struct ebb_env_item *item)
 {
   if(item->field) {
     VALUE f = rb_str_new(NULL, RSTRING_LEN(global_http_prefix) + item->field_length);
@@ -188,7 +188,7 @@ VALUE env_field(struct ebb_env_item *item)
 }
 
 
-VALUE env_value(struct ebb_env_item *item)
+static VALUE env_value(struct ebb_env_item *item)
 {
   if(item->value_length > 0)
     return rb_str_new(item->value, item->value_length);
@@ -197,7 +197,7 @@ VALUE env_value(struct ebb_env_item *item)
 }
 
 
-VALUE client_env(VALUE _, VALUE rb_client)
+static VALUE client_env(VALUE _, VALUE rb_client)
 {
   ebb_client *client;
   VALUE field, value, env = rb_hash_new();
@@ -220,7 +220,7 @@ VALUE client_env(VALUE _, VALUE rb_client)
   return env;
 }
 
-VALUE client_write_status(VALUE _, VALUE client, VALUE status, VALUE reason_phrase)
+static VALUE client_write_status(VALUE _, VALUE client, VALUE status, VALUE reason_phrase)
 {
   ebb_client *_client;
   Data_Get_Struct(client, ebb_client, _client);
@@ -228,7 +228,7 @@ VALUE client_write_status(VALUE _, VALUE client, VALUE status, VALUE reason_phra
   return Qnil;
 }
 
-VALUE client_write_header(VALUE _, VALUE client, VALUE field, VALUE value)
+static VALUE client_write_header(VALUE _, VALUE client, VALUE field, VALUE value)
 {
   ebb_client *_client;
   Data_Get_Struct(client, ebb_client, _client);
@@ -236,7 +236,7 @@ VALUE client_write_header(VALUE _, VALUE client, VALUE field, VALUE value)
   return Qnil;
 }
 
-VALUE client_write_body(VALUE _, VALUE client, VALUE string)
+static VALUE client_write_body(VALUE _, VALUE client, VALUE string)
 {
   ebb_client *_client;
   Data_Get_Struct(client, ebb_client, _client);
@@ -245,7 +245,7 @@ VALUE client_write_body(VALUE _, VALUE client, VALUE string)
 }
 
 
-VALUE client_release(VALUE _, VALUE rb_client)
+static VALUE client_release(VALUE _, VALUE rb_client)
 {
   ebb_client *client;
   Data_Get_Struct(rb_client, ebb_client, client);
