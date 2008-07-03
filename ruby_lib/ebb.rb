@@ -57,7 +57,7 @@ module Ebb
     client.write_status(status)
     
     # Add Content-Length to the headers.
-    if headers['Content-Length'].nil? and
+    if !headers.has_key?('Content-Length') and
        headers.respond_to?(:[]=) and 
        body.respond_to?(:length) and 
        status != 304
@@ -66,8 +66,8 @@ module Ebb
     end
     
     # Decide if we should keep the connection alive or not
-    if headers['Connection'].nil?
-      if headers['Content-Length'] and client.should_keep_alive?
+    unless headers.has_key?('Connection')
+      if headers.has_key?('Content-Length') and client.should_keep_alive?
         headers['Connection'] = 'Keep-Alive'
       else
         headers['Connection'] = 'close'
