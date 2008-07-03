@@ -58,11 +58,22 @@ module Ebb
     
     # Add Content-Length to the headers.
     if !headers.has_key?('Content-Length') and
-       headers.respond_to?(:[]=) and 
-       body.respond_to?(:length) and 
+       headers.respond_to?(:[]=) and
        status != 304
     then
-      headers['Content-Length'] = body.length.to_s
+      # for String just use "length" method
+      if body.kind_of?(String)
+        headers['Content-Length'] = body.length.to_s
+      else
+        # for non-Array object call "each" and transform to Array
+        unless body.kind_of?(Array)
+          parts = []
+          body.each {|p| parts << p}
+          body = parts
+        end
+        # body is Array so calculate Content-Length as sum of length each part
+        headers['Content-Length'] = body.inject(0) {|s, p| s + p.length }.to_s
+      end
     end
     
     # Decide if we should keep the connection alive or not
