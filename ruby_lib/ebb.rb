@@ -144,12 +144,11 @@ module Ebb
     end
     
     def should_keep_alive?
-      if env['HTTP_VERSION'] == 'HTTP/1.0' 
-        return true if env['HTTP_CONNECTION'] =~ /Keep-Alive/i
+      if env['HTTP_VERSION'] == 'HTTP/1.0'
+        return env['HTTP_CONNECTION'] =~ /Keep-Alive/i
       else
-        return true unless env['HTTP_CONNECTION'] =~ /close/i
+        return env['HTTP_CONNECTION'] !~ /close/i
       end
-      false
     end
   end
   
