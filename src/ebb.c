@@ -276,7 +276,7 @@ static void client_init(ebb_client *client)
   ev_io_start(client->server->loop, &client->read_watcher);
   
   client->timeout_watcher.data = client;  
-  ev_timer_init(&client->timeout_watcher, on_timeout, EBB_TIMEOUT, EBB_TIMEOUT);
+  ev_timer_init(&client->timeout_watcher, on_timeout, EBB_TIMEOUT, 0);
   ev_timer_start(client->server->loop, &client->timeout_watcher);
 }
 
