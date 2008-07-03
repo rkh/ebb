@@ -42,12 +42,12 @@ void env_add(ebb_client *client, const char *field, int flen, const char *value,
     client->parser.overflow_error = TRUE;
     return;
   }
-  client->env[client->env_size].type = -1;
-  client->env[client->env_size].field = field;
-  client->env[client->env_size].field_length = flen;
-  client->env[client->env_size].value = value;
-  client->env[client->env_size].value_length = vlen;
-  client->env_size += 1;
+  struct ebb_env_item * const item = &client->env[client->env_size++];
+  item->type = -1;
+  item->field_length = flen;
+  item->value_length = vlen;
+  item->field = field;
+  item->value = value;
 }
 
 
@@ -57,12 +57,12 @@ void env_add_const(ebb_client *client, int type, const char *value, int vlen)
     client->parser.overflow_error = TRUE;
     return;
   }
-  client->env[client->env_size].type = type;
-  client->env[client->env_size].field = NULL;
-  client->env[client->env_size].field_length = -1;
-  client->env[client->env_size].value = value;
-  client->env[client->env_size].value_length = vlen;
-  client->env_size += 1;
+  struct ebb_env_item * const item = &client->env[client->env_size++];
+  item->type = type;
+  item->field_length = -1;
+  item->value_length = vlen;
+  item->field = NULL;
+  item->value = value;
 }
 
 
