@@ -299,7 +299,7 @@ static void on_request(struct ev_loop *loop, ev_io *watcher, int revents)
    * until the request is complete and parsed.
    */
   int i;
-  ebb_client *client;
+  ebb_client *client = NULL;
   /* Get next availible peer */
   for(i=0; i < EBB_MAX_CLIENTS; i++)
     if(!server->clients[i].in_use && !server->clients[i].open) {
