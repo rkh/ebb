@@ -130,9 +130,7 @@ module Ebb
     end
     
     def write_header(field, value)
-      value.send(value.is_a?(String) ? :each_line : :each) do |v| 
-        FFI::client_write_header(self, field, v.chomp)
-      end
+      FFI::client_write_header(self, field, value)
     end
     
     def release
