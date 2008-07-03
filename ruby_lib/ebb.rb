@@ -183,6 +183,14 @@ module Ebb
     def each(&block)
       raise NotImplemented
     end
+
+private
+
+    # cause i don't want to create an array
+    def min(a,b)
+      a > b ? b : a
+    end
+
   end
   
   
@@ -238,7 +246,3 @@ module Rack
   end
 end
 
-# cause i don't want to create an array
-def min(a,b)
-  a > b ? b : a
-end
