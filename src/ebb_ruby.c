@@ -202,11 +202,13 @@ static VALUE client_env(VALUE _, VALUE rb_client)
   ebb_client *client;
   VALUE field, value, env = rb_hash_new();
   int i;
+  struct ebb_env_item *item;
   
   Data_Get_Struct(rb_client, ebb_client, client);
   for(i=0; i < client->env_size; i++) {
-    field = env_field(&client->env[i]);
-    value = env_value(&client->env[i]);
+    item = &client->env[i];
+    field = env_field(item);
+    value = env_value(item);
     rb_hash_aset(env, field, value);
   }
   
