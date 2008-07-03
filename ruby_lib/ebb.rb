@@ -51,6 +51,7 @@ module Ebb
   def self.process(app, client)
     #p client.env
     status, headers, body = app.call(client.env)
+    status = status.to_i
     
     # Write the status
     client.write_status(status)
@@ -121,8 +122,7 @@ module Ebb
     end
     
     def write_status(status)
-      s = status.to_i
-      FFI::client_write_status(self, s, HTTP_STATUS_CODES[s])
+      FFI::client_write_status(self, status, HTTP_STATUS_CODES[status])
     end
     
     def write_body(data)
