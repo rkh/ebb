@@ -35,10 +35,10 @@ void ebb_client_write_body(ebb_client*, const char *data, int length);
 
 struct ebb_env_item {
   int type;
-  const char *field;
   int field_length;
-  const char *value;
   int value_length;
+  const char *field;
+  const char *value;
 };
 
 struct ebb_client {
