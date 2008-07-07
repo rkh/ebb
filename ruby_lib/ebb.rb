@@ -18,7 +18,7 @@ module Ebb
       FFI::server_listen_on_unix_socket(socketfile)
       log.puts "Ebb is listening on unix socket #{socketfile}"
     else
-      port = (options[:port] || 4001).to_i
+      port = (options[:Port] || 4001).to_i
       FFI::server_listen_on_port(port)
       log.puts "Ebb is listening at http://0.0.0.0:#{port}/"
     end
