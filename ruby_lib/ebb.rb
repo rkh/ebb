@@ -115,6 +115,7 @@ module Ebb
     BASE_ENV = {
       'SERVER_NAME' => '0.0.0.0',
       'SCRIPT_NAME' => '',
+      'QUERY_STRING' => '',
       'SERVER_SOFTWARE' => "Ebb-Ruby #{Ebb::VERSION}",
       'SERVER_PROTOCOL' => 'HTTP/1.1',
       'rack.version' => [0, 1],
