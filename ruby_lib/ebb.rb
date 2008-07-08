@@ -3,7 +3,7 @@
 # See README file for details.
 require 'stringio'
 module Ebb
-  VERSION = "0.2.0"
+  VERSION = "0.2.1"
   LIBDIR = File.dirname(__FILE__)
   autoload :Runner, LIBDIR + '/ebb/runner'
   autoload :FFI, LIBDIR + '/../src/ebb_ext'
@@ -18,7 +18,7 @@ module Ebb
       FFI::server_listen_on_unix_socket(socketfile)
       log.puts "Ebb is listening on unix socket #{socketfile}"
     else
-      port = (options[:Port] || 4001).to_i
+      port = (options[:Port] || options[:port] || 4001).to_i
       FFI::server_listen_on_port(port)
       log.puts "Ebb is listening at http://0.0.0.0:#{port}/"
     end
