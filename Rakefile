@@ -9,7 +9,7 @@ end
 
 require dir('ruby_lib/ebb')
 
-COMMON_DISTFILES = FileList.new('src/ebb.{c,h}', 'src/parser.{c,h}', 
+COMMON_DISTFILES = FileList.new('src/ebb.{c,h}', 'src/parser.{rl,c,h}', 
   'libev/*', 'README')
 
 RUBY_DISTFILES = COMMON_DISTFILES + FileList.new('src/ebb_ruby.c', 
