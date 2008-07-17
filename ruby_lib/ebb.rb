@@ -63,7 +63,7 @@ module Ebb
     then
       # for String just use "length" method
       if body.kind_of?(String)
-        headers['Content-Length'] = body.length.to_s
+        headers['Content-Length'] = body.respond_to?(:bytesize) ? body.bytesize.to_s : body.length.to_s
       else
         # for non-Array object call "each" and transform to Array
         unless body.kind_of?(Array)
