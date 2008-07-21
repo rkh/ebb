@@ -41,6 +41,7 @@ static ebb_server server;
 struct ev_loop *loop;
 struct ev_idle idle_watcher;
 
+/* g is for global */
 static VALUE g_fragment;
 static VALUE g_path_info;
 static VALUE g_query_string;
@@ -54,6 +55,21 @@ static VALUE g_content_type;
 static VALUE g_http_client_ip;
 static VALUE g_http_prefix;
 static VALUE g_http_version;
+
+static VALUE g_COPY;
+static VALUE g_DELETE;
+static VALUE g_GET;
+static VALUE g_HEAD;
+static VALUE g_LOCK;
+static VALUE g_MKCOL;
+static VALUE g_MOVE;
+static VALUE g_OPTIONS;
+static VALUE g_POST;
+static VALUE g_PROPFIND;
+static VALUE g_PROPPATCH;
+static VALUE g_PUT;
+static VALUE g_TRACE;
+static VALUE g_UNLOCK;
 
 static void initialize_globals()
 {
@@ -71,6 +87,21 @@ static void initialize_globals()
   DEF_GLOBAL(http_client_ip, "HTTP_CLIENT_IP");
   DEF_GLOBAL(http_prefix, "HTTP_");
   DEF_GLOBAL(http_version, "HTTP_VERSION");
+
+  DEF_GLOBAL(COPY, "COPY");
+  DEF_GLOBAL(DELETE, "DELETE");
+  DEF_GLOBAL(GET, "GET");
+  DEF_GLOBAL(HEAD, "HEAD");
+  DEF_GLOBAL(LOCK, "LOCK");
+  DEF_GLOBAL(MKCOL, "MKCOL");
+  DEF_GLOBAL(MOVE, "MOVE");
+  DEF_GLOBAL(OPTIONS, "OPTIONS");
+  DEF_GLOBAL(POST, "POST");
+  DEF_GLOBAL(PROPFIND, "PROPFIND");
+  DEF_GLOBAL(PROPPATCH, "PROPPATCH");
+  DEF_GLOBAL(PUT, "PUT");
+  DEF_GLOBAL(TRACE, "TRACE");
+  DEF_GLOBAL(UNLOCK, "UNLOCK");
 }
 
 static void attach_idle_watcher()
@@ -114,6 +145,7 @@ static void fragment(ebb_request *request, const char *at, size_t len)
   APPEND_ENV(fragment);
 }
 
+/* very ugly... */
 static void header_field(ebb_request *request, const char *at, size_t len, int header_index)
 {
   VALUE rb_request = (VALUE)request->data; 
@@ -173,6 +205,41 @@ static void header_value(ebb_request *request, const char *at, size_t len, int _
 static void headers_complete(ebb_request *request)
 {
   VALUE rb_request = (VALUE)request->data; 
+  VALUE env = rb_iv_get(rb_request, "@env_ffi");
+
+  /* set REQUEST_METHOD. yuck */
+  VALUE method;
+  switch(request->method) {
+  case EBB_COPY      : method = g_COPY      ; break;
+  case EBB_DELETE    : method = g_DELETE    ; break;
+  case EBB_GET       : method = g_GET       ; break;
+  case EBB_HEAD      : method = g_HEAD      ; break;
+  case EBB_LOCK      : method = g_LOCK      ; break;
+  case EBB_MKCOL     : method = g_MKCOL     ; break;
+  case EBB_MOVE      : method = g_MOVE      ; break;
+  case EBB_OPTIONS   : method = g_OPTIONS   ; break;
+  case EBB_POST      : method = g_POST      ; break;
+  case EBB_PROPFIND  : method = g_PROPFIND  ; break;
+  case EBB_PROPPATCH : method = g_PROPPATCH ; break;
+  case EBB_PUT       : method = g_PUT       ; break;
+  case EBB_TRACE     : method = g_TRACE     ; break;
+  case EBB_UNLOCK    : method = g_UNLOCK    ; break;
+  }
+  rb_hash_aset(env, g_request_method, method);
+
+  /* set PATH_INFO */
+  rb_hash_aset(env, g_path_info, rb_hash_aref(env, g_request_path));
+
+  /* set SERVER_PORT */
+  char *server_port = ebb_request_connection(request)->server->port;
+  if(server_port)
+    rb_hash_aset(env, g_server_port, rb_str_new2(server_port));
+
+  /* set HTTP_CLIENT_IP */
+  char *client_ip = ebb_request_connection(request)->ip;
+  if(client_ip)
+    rb_hash_aset(env, g_http_client_ip, rb_str_new2(client_ip));
+
   rb_ary_push(waiting_requests, rb_request);
   // TODO set to detached if it has body
   attach_idle_watcher();

@@ -50,7 +50,6 @@ module Ebb
   
   def self.process(app, request)
     p request.env 
-    exit(0)
     #p request.env
     status, headers, body = app.call(request.env)
     status = status.to_i
@@ -119,7 +118,7 @@ module Ebb
       'SERVER_NAME' => '0.0.0.0',
       'SCRIPT_NAME' => '',
       'QUERY_STRING' => '',
-      'SERVER_SOFTWARE' => "Ebb-Ruby #{Ebb::VERSION}",
+      'SERVER_SOFTWARE' => "Ebb #{Ebb::VERSION}",
       'SERVER_PROTOCOL' => 'HTTP/1.1',
       'rack.version' => [0, 1],
       'rack.errors' => STDERR,
@@ -133,6 +132,14 @@ module Ebb
         @env_ffi.update(BASE_ENV)
         #env['rack.input'] = RequestBody.new(self)
         #env
+      end
+    end
+
+    def should_keep_alive?
+      if env['HTTP_VERSION'] == 'HTTP/1.0'
+        return env['HTTP_CONNECTION'] =~ /Keep-Alive/i
+      else
+        return env['HTTP_CONNECTION'] !~ /close/i
       end
     end
     
