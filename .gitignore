@@ -4,9 +4,10 @@ build
 site/index.html
 src/Makefile
 src/ebb.o
-src/ebb_ext.bundle
-src/ebb_ruby.o
+src/ebb_ffi.bundle
+src/ebb_ffi.so
+src/ebb_ffi.o
 src/mkmf.log
-src/parser.c
-src/parser.o
+src/ebb_request_parser.c
+src/ebb_request_parser.o
 test/parser_test

@@ -7,28 +7,22 @@ def dir(path)
   File.expand_path File.join(File.dirname(__FILE__), path)
 end
 
-require dir('ruby_lib/ebb')
+require dir('lib/ebb')
 
-COMMON_DISTFILES = FileList.new('src/ebb.{c,h}', 'src/parser.{rl,c,h}', 
-  'src/libev/*', 'README')
+DISTFILES = FileList.new('lib/**/*.rb', 'src/**/*.{rb,rl,c,h}', 'bin/*', 'README', 'Rakefile')
 
-RUBY_DISTFILES = COMMON_DISTFILES + FileList.new('src/ebb_ruby.c', 
-  'src/extconf.rb', 'lib/**/*', 'benchmark/*.rb', 'bin/ebb_rails', 
-  'test/*.rb')
+CLEAN.add ["**/*.{o,bundle,so,obj,pdb,lib,def,exp}", "benchmark/*.dump", 'site/index.html', ]
 
-CLEAN.add ["**/*.{o,bundle,so,obj,pdb,lib,def,exp}", "benchmark/*.dump", 
-  'site/index.html', 'MANIFEST']
-
-CLOBBER.add ['src/Makefile', 'src/parser.c', 'src/mkmf.log', 'build']
+CLOBBER.add ['src/Makefile', 'src/ebb_request_parser.c', 'src/mkmf.log']
 
 Rake::TestTask.new do |t|
   t.test_files = FileList.new("test/*.rb")
   t.verbose = true
 end
 
-task(:default => [:compile, :test])
+task(:default => [:compile])
 
-task(:compile => ['src/Makefile', 'src/ebb.c', 'src/ebb.h', 'src/ebb_ruby.c', 'src/parser.c', 'src/parser.h']) do
+task(:compile => ['src/Makefile'] + DISTFILES) do
   sh "cd #{dir('src')} && make"
 end
 
@@ -36,20 +30,13 @@ file('src/Makefile' => 'src/extconf.rb') do
     sh "cd #{dir('src')} && ruby extconf.rb"
 end
 
-task(:package => 'src/parser.c')
-file('src/parser.c' => 'src/parser.rl') do
-  sh 'ragel -s -G2 src/parser.rl'
-end
-
-file('MANIFEST') do
-  File.open(dir('MANIFEST'), "w+") do |manifest|
-    PYTHON_DISTFILES.each { |file| manifest.puts(file) }
-  end
+file('src/ebb_request_parser.c' => 'src/ebb_request_parser.rl') do
+  sh 'ragel -s -G2 src/ebb_request_parser.rl'
 end
 
 task(:wc) { sh "wc -l ruby_lib/*.rb src/ebb*.{c,h}" }
 
-task(:test => RUBY_DISTFILES)
+task(:test => DISTFILES)
 Rake::TestTask.new do |t|
   t.test_files = 'test/basic_test.rb'
   t.verbose = true
@@ -100,7 +87,7 @@ spec = Gem::Specification.new do |s|
   s.bindir = 'bin'
   s.executables = %w(ebb_rails)
   
-  s.files = RUBY_DISTFILES
+  s.files = DISTFILES
 end
 
 Rake::GemPackageTask.new(spec) do |pkg|
