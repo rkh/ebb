@@ -14,7 +14,6 @@
 
 /* Variables with a leading underscore are C-level variables */
 
-#define ASCII_UPPER(ch) ('a' <= ch && ch <= 'z' ? ch - 'a' + 'A' : ch)
 #ifndef RSTRING_PTR
 # define RSTRING_PTR(s) (RSTRING(s)->ptr)
 # define RSTRING_LEN(s) (RSTRING(s)->len)
@@ -31,6 +30,7 @@ static char upcase[] =
   "________________________________";
 
 static VALUE cRequest;
+static VALUE cConnection;
 static VALUE waiting_requests;
 
 /* You don't want to run more than one server per Ruby VM. Really
@@ -152,10 +152,6 @@ static void header_field(ebb_request *request, const char *at, size_t len, int h
   VALUE field = rb_iv_get(rb_request, "@field_in_progress");
   VALUE value = rb_iv_get(rb_request, "@value_in_progress");
 
-  if(field != Qnil)
-    printf("saw %s\n", RSTRING_PTR(field));
-  if(value != Qnil)
-    printf("saw %s\n", RSTRING_PTR(value));
 
   if( (field == Qnil && value == Qnil)
    || (field != Qnil && value != Qnil)
@@ -164,7 +160,6 @@ static void header_field(ebb_request *request, const char *at, size_t len, int h
     if(field != Qnil) {
       VALUE env = rb_iv_get(rb_request, "@env_ffi");
       rb_hash_aset(env, field, value);
-      printf("set %s, %s\n", RSTRING_PTR(field), RSTRING_PTR(value));
     }
 
     // prefix with HTTP_
@@ -240,6 +235,12 @@ static void headers_complete(ebb_request *request)
   if(client_ip)
     rb_hash_aset(env, g_http_client_ip, rb_str_new2(client_ip));
 
+  /* set HTTP_VERSION */
+  VALUE version = rb_str_buf_new(11);
+  sprintf(RSTRING_PTR(version), "HTTP/%d.%d", request->version_major, request->version_minor);
+  rb_str_set_len(version, strlen(RSTRING_PTR(version)));
+  rb_hash_aset(env, g_http_version, version);
+
   rb_ary_push(waiting_requests, rb_request);
   // TODO set to detached if it has body
   attach_idle_watcher();
@@ -272,6 +273,7 @@ static ebb_request* new_request(ebb_connection *connection)
   request->request_complete = request_complete;
 
   VALUE rb_request = Data_Wrap_Struct(cRequest, 0, free, request);
+  rb_iv_set(rb_request, "@connection", (VALUE)connection->data);
   rb_iv_set(rb_request, "@env_ffi", rb_hash_new());
   rb_iv_set(rb_request, "@value_in_progress", Qnil);
   rb_iv_set(rb_request, "@field_in_progress", Qnil);
@@ -280,6 +282,52 @@ static ebb_request* new_request(ebb_connection *connection)
   return request;
 }
 
+static int on_writable(ebb_connection *connection)
+{
+  VALUE rb_connection = (VALUE)connection->data;
+
+  VALUE to_write = rb_iv_get(rb_connection, "@to_write");
+  VALUE first = RARRAY_PTR(to_write)[0];
+
+  VALUE buffer = RARRAY_PTR(first)[0];
+  VALUE after_action = RARRAY_PTR(first)[1];
+  int written = FIX2INT( RARRAY_PTR(first)[2] );
+
+  /* TODO use writev here */
+
+  ssize_t sent = write( connection->fd
+                      , RSTRING_PTR(buffer) + written
+                      , RSTRING_LEN(buffer) - written
+                      );
+  if(written == 0) goto error; /* XXX is this the write thing to do? */
+  if(written < 0) goto error;
+
+  written += sent;
+
+  assert(written < RSTRING_LEN(buffer));
+
+  if(written == sent) {
+    /* done with this chunk */
+    rb_ary_shift(to_write);
+    if(RARRAY_LEN(to_write) == 0) {
+      /* totally done - execute after action */
+      if(after_action != Qnil)
+        rb_funcall(after_action, rb_intern("send"), 0);
+      return EBB_STOP;
+    }
+  } else {
+    /* try again next time */
+    RARRAY_PTR(first)[2] = INT2FIX(written);
+  }
+
+  return EBB_AGAIN;
+
+error:
+  ebb_connection_close(connection);
+  return EBB_STOP;
+}
+
+
 static ebb_connection* 
 new_connection(ebb_server *server, struct sockaddr_in *addr)
 {
@@ -287,8 +335,12 @@ new_connection(ebb_server *server, struct sockaddr_in *addr)
 
   ebb_connection_init(connection, 30.0);
   connection->new_request = new_request;
-  //connection->on_writable = on_writable;
+  connection->on_writable = on_writable;
   connection->free = (void (*)(ebb_connection*))free;
+
+  VALUE rb_connection = Data_Wrap_Struct(cConnection, 0, 0, connection);
+  rb_iv_set(rb_connection, "@to_write", rb_ary_new());
+  connection->data = (void*)rb_connection;
 
   return connection;
 }
@@ -372,6 +424,22 @@ static VALUE server_waiting_requests(VALUE _)
   return waiting_requests;
 }
 
+static VALUE connection_enable_on_writable(VALUE _, VALUE rb_connection) 
+{
+  ebb_connection *connection; 
+  Data_Get_Struct(rb_connection, ebb_connection, connection);
+  ebb_connection_enable_on_writable(connection);
+  return Qnil;
+}
+
+static VALUE connection_close(VALUE _, VALUE rb_connection) 
+{
+  ebb_connection *connection; 
+  Data_Get_Struct(rb_connection, ebb_connection, connection);
+  ebb_connection_close(connection);
+  return Qnil;
+}
+
 void Init_ebb_ffi()
 {
   VALUE mEbb = rb_define_module("Ebb");
@@ -387,8 +455,11 @@ void Init_ebb_ffi()
   rb_define_singleton_method(mFFI, "server_unlisten", server_unlisten, 0);
   rb_define_singleton_method(mFFI, "server_open?", server_open, 0);
   rb_define_singleton_method(mFFI, "server_waiting_requests", server_waiting_requests, 0);
+  rb_define_singleton_method(mFFI, "connection_enable_on_writable", connection_enable_on_writable, 1);
+  rb_define_singleton_method(mFFI, "connection_close", connection_close, 1);
   
   cRequest = rb_define_class_under(mEbb, "Request", rb_cObject);
+  cConnection = rb_define_class_under(mEbb, "Connection", rb_cObject);
   
   /* initialize ebb_server */
   loop = ev_default_loop (0);

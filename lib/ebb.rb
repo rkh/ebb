@@ -55,9 +55,6 @@ module Ebb
     status = status.to_i
 
     
-    # Write the status
-    # request.write_status(status)
-    
     # Add Content-Length to the headers.
     if !headers.has_key?('Content-Length') and
        headers.respond_to?(:[]=) and
@@ -87,15 +84,30 @@ module Ebb
       end
     end
     
+    response = "HTTP/1.1 #{status} #{HTTP_STATUS_CODES[status]}\r\n"
     # Write the headers
-    #headers.each { |field, value| request.write_header(field, value) }
+    headers.each do |field, value| 
+      response << "#{field}: #{value}\r\n" 
+    end
     
+    response << "\r\n" 
+
     # Write the body
-    #if body.kind_of?(String)
-    #  request.write_body(body)
-    #else
-    #  body.each { |p| request.write_body(p) }
-    #end
+    connection = request.connection
+    if body.kind_of?(String)
+      response << body
+      if request.should_keep_alive?
+        connection.write(response)
+      else
+        connection.write(response) { connection.close }
+      end
+    else
+      connection.write(response)
+      body.each do |chunk|
+        connection.write(chunk)
+      end
+      connection.write(nil) { connection.close }
+    end
     
   rescue => e
     log.puts "Ebb Error! #{e.class}  #{e.message}"
@@ -111,9 +123,20 @@ module Ebb
   def self.log
     @@log
   end
+
+  class Connection
+    def write(string, &after)
+      @to_write << [string, after, 0] 
+      FFI::connection_enable_on_writable(self)
+    end
+
+    def close
+      FFI::connection_close(self)
+    end
+  end
   
   class Request
-    attr_reader :fd, :body_head, :content_length
+    attr_reader :connection
     BASE_ENV = {
       'SERVER_NAME' => '0.0.0.0',
       'SCRIPT_NAME' => '',
