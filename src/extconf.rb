@@ -1,9 +1,5 @@
 require 'mkmf'
 
-unless pkg_config('glib-2.0')
-  abort "Ebb requires glib-2.0 and pkg_config"
-end
-
 flags = []
 
 if have_header('sys/select.h')
@@ -31,14 +27,14 @@ if have_header('sys/inotify.h')
 end
 
 dir = File.dirname(__FILE__)
-libev_dir = File.expand_path(dir + '/../libev')
+libev_dir = File.expand_path(dir + '/libev')
 
-$LDFLAGS << " -lpthread "
+# $LDFLAGS << " -lpthread "
 $CFLAGS << " -I#{libev_dir} " << flags.join(' ')
 $defs << "-DRUBY_VERSION_CODE=#{RUBY_VERSION.gsub(/\D/, '')}"
 
-$srcs = ['ebb.c', 'ebb_ruby.c', 'parser.c']
-$objs = ['ebb.o', 'ebb_ruby.o', 'parser.o']
+$srcs = ['ebb_ffi.c', 'ebb.c', "ebb_request_parser.c"]
+$objs = ['ebb_ffi.o', "ebb.o", "ebb_request_parser.o"]
 
-dir_config('ebb_ext')
-create_makefile('ebb_ext')
+dir_config('ebb_ffi')
+create_makefile('ebb_ffi')

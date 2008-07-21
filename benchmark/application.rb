@@ -66,7 +66,6 @@ class SimpleApp
           input_body.length = #{input_body.length}"
         status = 500
       end
-    
     else
       status = 404
       body = "Undefined url"
@@ -80,7 +79,18 @@ end
 
 
 if $0 == __FILE__
-  require DIR + '/../ruby_lib/ebb'
+#  Thread.new do
+#    i = 0
+#    loop {
+#      puts i += 1
+#      sleep 1
+#    }
+#  end
+
+  require DIR + '/../lib/ebb'
   #server = Ebb::start_server(SimpleApp.new, :unix_socket => '/tmp/ebb.sock')
   server = Ebb::start_server(SimpleApp.new, :port => 4001)
+  #require 'rubygems'
+  #require 'rack'
+  #Rack::Handler::Mongrel.run(SimpleApp.new, :Port => 4001)
 end

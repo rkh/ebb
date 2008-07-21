@@ -10,14 +10,11 @@ end
 require dir('ruby_lib/ebb')
 
 COMMON_DISTFILES = FileList.new('src/ebb.{c,h}', 'src/parser.{rl,c,h}', 
-  'libev/*', 'README')
+  'src/libev/*', 'README')
 
 RUBY_DISTFILES = COMMON_DISTFILES + FileList.new('src/ebb_ruby.c', 
-  'src/extconf.rb', 'ruby_lib/**/*', 'benchmark/*.rb', 'bin/ebb_rails', 
+  'src/extconf.rb', 'lib/**/*', 'benchmark/*.rb', 'bin/ebb_rails', 
   'test/*.rb')
-
-PYTHON_DISTFILES = COMMON_DISTFILES + FileList.new('setup.py', 
-  'src/ebb_python.c')
 
 CLEAN.add ["**/*.{o,bundle,so,obj,pdb,lib,def,exp}", "benchmark/*.dump", 
   'site/index.html', 'MANIFEST']
