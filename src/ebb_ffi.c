@@ -21,14 +21,14 @@
 #endif
 
 static char upcase[] =
-  "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-  "\0\0\0\0\0\0\0\0\0\0\0\0\0_\0\0" "0123456789\0\0\0\0\0\0"
-  "\0ABCDEFGHIJKLMNOPQRSTUVWXYZ\0\0\0\0\0"
-  "\0ABCDEFGHIJKLMNOPQRSTUVWXYZ\0\0\0\0\0"
-  "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-  "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-  "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
-  "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
+  "\0______________________________"
+  "_________________0123456789_____"
+  "__ABCDEFGHIJKLMNOPQRSTUVWXYZ____"
+  "__ABCDEFGHIJKLMNOPQRSTUVWXYZ____"
+  "________________________________"
+  "________________________________"
+  "________________________________"
+  "________________________________";
 
 static VALUE cRequest;
 static VALUE waiting_requests;
@@ -96,13 +96,7 @@ static void detach_idle_watcher()
 
 static void request_path(ebb_request *request, const char *at, size_t len)
 {
-  VALUE rb_request = (VALUE)request->data;  
-  VALUE env = rb_iv_get(rb_request, "@env_ffi"); 
-  VALUE v = rb_hash_aref(env, g_request_path); 
-  if(v == Qnil) 
-    rb_hash_aset(env, g_request_path, rb_str_new(at, len)); 
-  else 
-    rb_str_cat(v, at, len);
+  APPEND_ENV(request_path);
 }
 
 static void query_string(ebb_request *request, const char *at, size_t len)
@@ -126,11 +120,20 @@ static void header_field(ebb_request *request, const char *at, size_t len, int h
   VALUE field = rb_iv_get(rb_request, "@field_in_progress");
   VALUE value = rb_iv_get(rb_request, "@value_in_progress");
 
-  if(value == Qnil) {
-    // very first pass
-    // or first pass for this header
-    VALUE env = rb_iv_get(rb_request, "@env_ffi");
-    rb_hash_aset(env, field, value);
+  if(field != Qnil)
+    printf("saw %s\n", RSTRING_PTR(field));
+  if(value != Qnil)
+    printf("saw %s\n", RSTRING_PTR(value));
+
+  if( (field == Qnil && value == Qnil)
+   || (field != Qnil && value != Qnil)
+    ) 
+  {
+    if(field != Qnil) {
+      VALUE env = rb_iv_get(rb_request, "@env_ffi");
+      rb_hash_aset(env, field, value);
+      printf("set %s, %s\n", RSTRING_PTR(field), RSTRING_PTR(value));
+    }
 
     // prefix with HTTP_
     VALUE f = rb_str_new(NULL, RSTRING_LEN(g_http_prefix) + len);
@@ -157,14 +160,14 @@ static void header_field(ebb_request *request, const char *at, size_t len, int h
 
 }
 
-static void header_value(ebb_request *request, const char *at, size_t len, int header_index)
+static void header_value(ebb_request *request, const char *at, size_t len, int _)
 {
   VALUE rb_request = (VALUE)request->data; 
-  VALUE in_progress = rb_iv_get(rb_request, "@value_in_progress");
-  if(in_progress == Qnil)
+  VALUE v = rb_iv_get(rb_request, "@value_in_progress");
+  if(v == Qnil)
     rb_iv_set(rb_request, "@value_in_progress", rb_str_new(at, len));
   else
-    rb_str_cat(in_progress, at, len);
+    rb_str_cat(v, at, len);
 }
 
 static void headers_complete(ebb_request *request)

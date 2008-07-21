@@ -22,7 +22,7 @@ end
 
 task(:default => [:compile])
 
-task(:compile => ['src/Makefile'] + DISTFILES) do
+task(:compile => ['src/Makefile','src/ebb_request_parser.c'] + DISTFILES) do
   sh "cd #{dir('src')} && make"
 end
 
