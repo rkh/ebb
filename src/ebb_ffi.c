@@ -313,6 +313,18 @@ server_open(VALUE _)
   return server.listening ? Qtrue : Qfalse;
 }
 
+#ifdef HAVE_GNUTLS
+static VALUE
+server_set_secure(VALUE _, VALUE cert_file, VALUE key_file)
+{
+  ebb_server_set_secure( &server
+                       , RSTRING_PTR(cert_file)
+                       , RSTRING_PTR(key_file)
+                       );
+  return Qnil;
+}
+#endif /* HAVE_GNUTLS */
+
 static VALUE 
 server_waiting_requests(VALUE _)
 {
@@ -402,6 +414,9 @@ Init_ebb_ffi()
   rb_define_singleton_method(mFFI, "server_listen_on_fd", server_listen_on_fd, 1);
   rb_define_singleton_method(mFFI, "server_listen_on_port", server_listen_on_port, 1);
   rb_define_singleton_method(mFFI, "server_unlisten", server_unlisten, 0);
+#ifdef HAVE_GNUTLS 
+  rb_define_singleton_method(mFFI, "server_set_secure", server_set_secure, 2);
+#endif
   rb_define_singleton_method(mFFI, "server_open?", server_open, 0);
   rb_define_singleton_method(mFFI, "server_waiting_requests", server_waiting_requests, 0);
 

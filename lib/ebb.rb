@@ -30,6 +30,21 @@ module Ebb
       FFI::server_listen_on_port(port)
       log.puts "Ebb is listening at http://0.0.0.0:#{port}/"
     end
+
+    if options.has_key?(:ssl_cert) and options.has_key?(:ssl_key)
+      unless FFI.respond_to?(:server_set_secure)
+        puts "ebb compiled without ssl support. get gnutls" 
+      else
+        cert_file = options[:ssl_cert]
+        key_file = options[:ssl_key]
+        if FileTest.readable?(cert_file) and FileTest.readable?(cert_file)
+          FFI::server_set_secure(cert_file, key_file);
+        else 
+          puts "error opening certificate or key file"
+        end
+      end
+    end
+
     log.puts "Ebb PID #{Process.pid}"
     
     @running = true

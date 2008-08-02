@@ -91,5 +91,9 @@ if $0 == __FILE__
   require 'rubygems'
   require 'ruby-debug'
   Debugger.start
-  server = Ebb::start_server(SimpleApp.new, :port => 4001)
+  server = Ebb::start_server(SimpleApp.new, 
+                             :port => 4001,
+                             :ssl_cert => "/home/ryan/projects/ebb/benchmark/ca-cert.pem",
+                             :ssl_key => "/home/ryan/projects/ebb/benchmark/ca-key.pem"
+                            )
 end

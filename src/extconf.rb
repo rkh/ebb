@@ -2,6 +2,10 @@ require 'mkmf'
 
 flags = []
 
+if pkg_config("gnutls")
+  flags << '-DHAVE_GNUTLS'
+end
+
 if have_header('sys/select.h')
   flags << '-DEV_USE_SELECT'
 end
@@ -32,6 +36,7 @@ libev_dir = File.expand_path(dir + '/libev')
 $LDFLAGS << " -lefence "
 $CFLAGS << " -I#{libev_dir} " << flags.join(' ')
 $defs << "-DRUBY_VERSION_CODE=#{RUBY_VERSION.gsub(/\D/, '')}"
+
 
 $srcs = ['ebb_ffi.c', 'ebb.c', "ebb_request_parser.c", "rbtree.c"]
 $objs = ['ebb_ffi.o', "ebb.o", "ebb_request_parser.o", "rbtree.o"]
