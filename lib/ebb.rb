@@ -54,7 +54,11 @@ module Ebb
     while @running
       FFI::server_process_connections()
       while request = FFI::server_waiting_requests.shift
-        process(app, request)
+        if app.respond_to?(:deferred?) and !app.deferred?(request.env)
+          process(app, request)
+        else
+          Thread.new(request) { |req| process(app, req) }
+        end
       end
     end
     FFI::server_unlisten()

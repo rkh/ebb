@@ -79,21 +79,21 @@ end
 
 
 if $0 == __FILE__
-#  Thread.new do
-#    i = 0
-#    loop {
-#      puts i += 1
-#      sleep 1
-#    }
-#  end
+  Thread.new do
+    i = 0
+    loop {
+      puts i += 1
+      sleep 1
+    }
+  end
 
   require DIR + '/../lib/ebb'
   require 'rubygems'
   require 'ruby-debug'
   Debugger.start
   server = Ebb::start_server(SimpleApp.new, 
-                             :port => 4001,
-                             :ssl_cert => "/home/ryan/projects/ebb/benchmark/ca-cert.pem",
-                             :ssl_key => "/home/ryan/projects/ebb/benchmark/ca-key.pem"
+                             :port => 4001
+#                             :ssl_cert => "/home/ryan/projects/ebb/benchmark/ca-cert.pem",
+#                             :ssl_key => "/home/ryan/projects/ebb/benchmark/ca-key.pem"
                             )
 end

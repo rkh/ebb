@@ -38,7 +38,9 @@ static VALUE waiting_requests;
  * initializing a single server and single event loop on module load.
  */
 static ebb_server server;
+static unsigned int nconnections;
 struct ev_loop *loop;
+struct ev_idle idle_watcher;
 
 /* g is for global */
 static VALUE g_fragment;
@@ -69,6 +71,58 @@ static VALUE g_PROPPATCH;
 static VALUE g_PUT;
 static VALUE g_TRACE;
 static VALUE g_UNLOCK;
+
+static void attach_idle_watcher()
+{
+  if(!ev_is_active(&idle_watcher)) {
+    ev_idle_start (loop, &idle_watcher);
+  }
+}
+
+
+static void detach_idle_watcher()
+{
+  ev_idle_stop(loop, &idle_watcher);
+}
+
+static struct timeval idle_timeout = { 0, 50000 };
+
+static void
+idle_cb (struct ev_loop *loop, struct ev_idle *w, int revents) {
+  /* How to let other Ruby threads run while we're in this blocking C call */
+
+  /* TODO: For Ruby 1.9 I should use rb_thread_blocking_region() instead of 
+   * this hacky idle_cb
+   */
+  
+  if(nconnections > 0) {
+    /* If ruby has control of any clients - that means there are some requests
+     * still being processed inside of threads. We need to allow Ruby some
+     * time to work on these threads so we call rb_thread_schedule()
+     * I don't use rb_thread_select() here because it is very slow.
+     */
+    rb_thread_schedule();
+
+  } else if(!rb_thread_alone()) {
+    /* If no clients are in use, but there are still other Ruby threads then
+     * some other thread is running in the Ruby VM which is not a request.
+     * This is a sub-optimal situation and we solve it by calling 
+     * rb_thread_select() to wait for the server fd to wake up.
+     * One should try to avoid entering this state.
+     */
+    fd_set server_fd_set;
+    FD_ZERO(&server_fd_set);
+    FD_SET(server.fd, &server_fd_set);
+    rb_thread_select(server.fd+1, &server_fd_set, 0, 0, &idle_timeout);
+  } else {
+    /* Otherwise there are no other threads. We can detach the idle_watcher
+     * and allow the server_process_connections() to block until the 
+     * server fd wakes up. Because we don't use rb_thread_select() this
+     * is quite fast.
+     */
+    detach_idle_watcher();
+  }
+}
 
 #define APPEND_ENV(NAME) \
   VALUE rb_request = (VALUE)request->data;  \
@@ -201,12 +255,18 @@ headers_complete(ebb_request *request)
   rb_hash_aset(env, g_http_version, version);
 
   rb_ary_push(waiting_requests, rb_request);
+  attach_idle_watcher();
   // TODO set to detached if it has body
 }
 
 static void 
 body_handler(ebb_request *request, const char *at, size_t length)
 {
+  VALUE rb_request = (VALUE)request->data; 
+  VALUE body_parts = rb_iv_get(rb_request, "@body_parts");
+  VALUE chunk = rb_str_new(at, length);
+
+  rb_ary_push(body_parts, chunk);
   // TODO push to @body_parts inside rb_request
   ;
 }
@@ -255,6 +315,7 @@ on_close(ebb_connection *connection)
   VALUE rb_connection = (VALUE)connection->data;
   rb_funcall(rb_connection, rb_intern("on_close"), 0, 0);
   free(connection);
+  nconnections -= 1;
 }
 
 static ebb_connection* 
@@ -270,6 +331,8 @@ new_connection(ebb_server *server, struct sockaddr_in *addr)
   //rb_iv_set(rb_connection, "@to_write", rb_ary_new());
   connection->data = (void*)rb_connection;
   rb_obj_call_init(rb_connection, 0, 0);
+
+  nconnections += 1;
 
   return connection;
 }
@@ -430,6 +493,12 @@ Init_ebb_ffi()
   
   /* initialize ebb_server */
   loop = ev_default_loop (0);
+
+  ev_idle_init (&idle_watcher, idle_cb);
+  attach_idle_watcher();
+
+  nconnections = 0;
+
   ebb_server_init(&server, loop);
   
   waiting_requests = rb_ary_new();
