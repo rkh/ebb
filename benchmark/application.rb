@@ -73,7 +73,7 @@ class SimpleApp
     
     body += "\r\n"
     headers = {'Content-Type' => 'text/plain', 'Content-Length' => body.length.to_s }
-    [status, headers, body]
+    [status, headers, [body]]
   end
 end
 
@@ -88,9 +88,8 @@ if $0 == __FILE__
 #  end
 
   require DIR + '/../lib/ebb'
-  #server = Ebb::start_server(SimpleApp.new, :unix_socket => '/tmp/ebb.sock')
+  require 'rubygems'
+  require 'ruby-debug'
+  Debugger.start
   server = Ebb::start_server(SimpleApp.new, :port => 4001)
-  #require 'rubygems'
-  #require 'rack'
-  #Rack::Handler::Mongrel.run(SimpleApp.new, :Port => 4001)
 end

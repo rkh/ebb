@@ -8,6 +8,14 @@ module Ebb
   autoload :Runner, LIBDIR + '/ebb/runner'
   autoload :FFI, LIBDIR + '/../src/ebb_ffi'
   
+  def self.running?
+    FFI::server_open?
+  end
+  
+  def self.stop_server()
+    @running = false
+  end
+  
   def self.start_server(app, options={})
     if options.has_key?(:fileno)
       fd = options[:fileno].to_i
@@ -25,114 +33,140 @@ module Ebb
     log.puts "Ebb PID #{Process.pid}"
     
     @running = true
+    Connection.reset_write_queues
     trap('INT')  { stop_server }
-    
+
     while @running
       FFI::server_process_connections()
       while request = FFI::server_waiting_requests.shift
-        if app.respond_to?(:deferred?) and app.deferred?(request.env)
-          Thread.new(request) { |req| process(app, req) }
-        else
-          process(app, request)
-        end
+        process(app, request)
       end
     end
     FFI::server_unlisten()
   end
   
-  def self.running?
-    FFI::server_open?
-  end
-  
-  def self.stop_server()
-    @running = false
-  end
-  
-  def self.process(app, request)
-    p request.env 
+  def self.process(app, req)
     #p request.env
-    status, headers, body = app.call(request.env)
-    status = status.to_i
-
-    
-    # Add Content-Length to the headers.
-    if !headers.has_key?('Content-Length') and
-       headers.respond_to?(:[]=) and
-       status != 304
-    then
-      # for String just use "length" method
-      if body.kind_of?(String)
-        headers['Content-Length'] = body.respond_to?(:bytesize) ? body.bytesize.to_s : body.length.to_s
-      else
-        # for non-Array object call "each" and transform to Array
-        unless body.kind_of?(Array)
-          parts = []
-          body.each {|p| parts << p}
-          body = parts
-        end
-        # body is Array so calculate Content-Length as sum of length each part
-        headers['Content-Length'] = body.inject(0) {|s, p| s + p.length }.to_s
-      end
-    end
-    
-    # Decide if we should keep the connection alive or not
-    unless headers.has_key?('Connection')
-      if headers.has_key?('Content-Length') and request.should_keep_alive?
-        headers['Connection'] = 'Keep-Alive'
-      else
-        headers['Connection'] = 'close'
-      end
-    end
-    
-    response = "HTTP/1.1 #{status} #{HTTP_STATUS_CODES[status]}\r\n"
-    # Write the headers
-    headers.each do |field, value| 
-      response << "#{field}: #{value}\r\n" 
-    end
-    
-    response << "\r\n" 
-
-    # Write the body
-    connection = request.connection
-    if body.kind_of?(String)
-      response << body
-      if request.should_keep_alive?
-        connection.write(response)
-      else
-        connection.write(response) { connection.close }
-      end
+    status, headers, body = app.call(req.env)
+    res = Response.new(status, headers, body)
+    res.last = !req.keep_alive?
+    if queue = Connection.write_queues[req.connection]
+      queue << res  
     else
-      connection.write(response)
-      body.each do |chunk|
-        connection.write(chunk)
-      end
-      connection.write(nil) { connection.close }
+      queue = Connection.write_queues[req.connection] = Array.new
+      queue << res
+      req.connection.start_writing  
     end
-    
-  rescue => e
-    log.puts "Ebb Error! #{e.class}  #{e.message}"
-    log.puts e.backtrace.join("\n")
-  ensure
-    request.release
-  end
-  
-  @@log = STDOUT
-  def self.log=(output)
-    @@log = output
-  end
-  def self.log
-    @@log
   end
 
   class Connection
-    def write(string, &after)
-      @to_write << [string, after, 0] 
-      FFI::connection_enable_on_writable(self)
+    def self.reset_write_queues
+      @@write_queues = {}
     end
 
-    def close
-      FFI::connection_close(self)
+    def self.write_queues
+      @@write_queues
     end
+
+    def start_writing
+      res = queue.first
+      FFI::connection_write(self, res.chunk)
+    end
+
+    def queue
+      @@write_queues[self]
+    end
+
+    def on_close
+      @@write_queues.delete(self)
+    end
+
+    def on_writable
+      if queue.empty?
+        @@write_queues.delete(self)
+      else
+        res = queue.first
+        if chunk = res.shift
+          FFI::connection_write(self, chunk)
+        else
+          if res.last
+            FFI::connection_schedule_close(self) 
+            @@write_queues.delete(self)
+          else
+            queue.shift # write nothing. we'll get'em next time
+          end
+        end
+      end
+    end
+  end
+    
+  class Response
+    attr_reader :chunk
+    attr_accessor :last
+    def initialize(status, headers, body)
+      @body = body
+      @chunk = "HTTP/1.1 #{status} #{HTTP_STATUS_CODES[status.to_i]}\r\n"
+      headers.each { |field, value| @chunk << "#{field}: #{value}\r\n" }
+      @chunk << "\r\n#{@body.shift}" 
+      @last = false
+    end
+
+    # if returns nil, there is nothing else to write
+    # otherwise returns then next chunk needed to write.
+    # on writable call connection.write(response.shift) 
+    def shift
+      @chunk = @body.shift
+    end
+
+    HTTP_STATUS_CODES = {
+      100  => 'Continue', 
+      101  => 'Switching Protocols', 
+      200  => 'OK', 
+      201  => 'Created', 
+      202  => 'Accepted', 
+      203  => 'Non-Authoritative Information', 
+      204  => 'No Content', 
+      205  => 'Reset Content', 
+      206  => 'Partial Content', 
+      300  => 'Multiple Choices', 
+      301  => 'Moved Permanently', 
+      302  => 'Moved Temporarily', 
+      303  => 'See Other', 
+      304  => 'Not Modified', 
+      305  => 'Use Proxy', 
+      400  => 'Bad Request', 
+      401  => 'Unauthorized', 
+      402  => 'Payment Required', 
+      403  => 'Forbidden', 
+      404  => 'Not Found', 
+      405  => 'Method Not Allowed', 
+      406  => 'Not Acceptable', 
+      407  => 'Proxy Authentication Required', 
+      408  => 'Request Time-out', 
+      409  => 'Conflict', 
+      410  => 'Gone', 
+      411  => 'Length Required', 
+      412  => 'Precondition Failed', 
+      413  => 'Request Entity Too Large', 
+      414  => 'Request-URI Too Large', 
+      415  => 'Unsupported Media Type', 
+      500  => 'Internal Server Error', 
+      501  => 'Not Implemented', 
+      502  => 'Bad Gateway', 
+      503  => 'Service Unavailable', 
+      504  => 'Gateway Time-out', 
+      505  => 'HTTP Version not supported'
+    }.freeze
+  end
+  
+  @@log = STDOUT
+
+  def self.log=(output)
+    @@log = output
+  end
+
+  def self.log
+    @@log
   end
   
   class Request
@@ -149,6 +183,10 @@ module Ebb
       'rack.multiprocess' => false,
       'rack.run_once' => false
     }
+
+    def keep_alive?
+      FFI::request_should_keep_alive?(self)
+    end
     
     def env
       @env ||= begin
@@ -166,51 +204,9 @@ module Ebb
       end
     end
     
-    def release
-      #FFI::request_release(self)
-    end
   end
   
   
-  HTTP_STATUS_CODES = {  
-    100  => 'Continue', 
-    101  => 'Switching Protocols', 
-    200  => 'OK', 
-    201  => 'Created', 
-    202  => 'Accepted', 
-    203  => 'Non-Authoritative Information', 
-    204  => 'No Content', 
-    205  => 'Reset Content', 
-    206  => 'Partial Content', 
-    300  => 'Multiple Choices', 
-    301  => 'Moved Permanently', 
-    302  => 'Moved Temporarily', 
-    303  => 'See Other', 
-    304  => 'Not Modified', 
-    305  => 'Use Proxy', 
-    400  => 'Bad Request', 
-    401  => 'Unauthorized', 
-    402  => 'Payment Required', 
-    403  => 'Forbidden', 
-    404  => 'Not Found', 
-    405  => 'Method Not Allowed', 
-    406  => 'Not Acceptable', 
-    407  => 'Proxy Authentication Required', 
-    408  => 'Request Time-out', 
-    409  => 'Conflict', 
-    410  => 'Gone', 
-    411  => 'Length Required', 
-    412  => 'Precondition Failed', 
-    413  => 'Request Entity Too Large', 
-    414  => 'Request-URI Too Large', 
-    415  => 'Unsupported Media Type', 
-    500  => 'Internal Server Error', 
-    501  => 'Not Implemented', 
-    502  => 'Bad Gateway', 
-    503  => 'Service Unavailable', 
-    504  => 'Gateway Time-out', 
-    505  => 'HTTP Version not supported'
-  }.freeze
 end
 
 
