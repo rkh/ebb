@@ -65,10 +65,26 @@ module Ebb
   end
   
   def self.process(app, req)
-    #p request.env
+    # p req.env
     status, headers, body = app.call(req.env)
     res = Response.new(status, headers, body)
     res.last = !req.keep_alive?
+
+    # I use a non-rack body.shift method.
+    # because its not very useful in an evented manor
+    # i hope chris will change this soon
+    unless body.respond_to?(:shift)
+      if body.kind_of?(String)
+        body = [body]
+      else
+        b = []
+        body.each { |chunk| b << chunk }
+        body = c
+      end
+    end
+
+    # TODO chunk encode the response if have chunked encoding
+
     if queue = Connection.write_queues[req.connection]
       queue << res  
     else
@@ -217,10 +233,15 @@ module Ebb
     
     def env
       @env ||= begin
-        @env_ffi.update(BASE_ENV)
-        #env['rack.input'] = RequestBody.new(self)
-        #env
+        env = @env_ffi.update(BASE_ENV)
+        env['CONTENT_LENGTH'] = env['HTTP_CONTENT_LENGTH']
+        env['rack.input'] = self 
+        env
       end
+    end
+
+    def read(want = 1024)
+      FFI::request_read(self, want)
     end
 
     def should_keep_alive?

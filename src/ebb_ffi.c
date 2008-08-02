@@ -208,7 +208,7 @@ header_field(ebb_request *request, const char *at, size_t len, int _)
     rb_str_cat(field, at, len);
 
   } else {
-   assert(0 && "field == Qnil && value != Qnil"); 
+    assert(0 && "field == Qnil && value != Qnil"); 
   }
 }
 
@@ -238,7 +238,6 @@ headers_complete(ebb_request *request)
            , "@chunked"
            , request->transfer_encoding == EBB_CHUNKED ? Qtrue : Qfalse
            );
-  rb_iv_set(rb_request, "@body_finished", Qfalse);
 
   /* set REQUEST_METHOD. yuck */
   VALUE method;
@@ -304,19 +303,21 @@ request_complete(ebb_request *request)
 }
 
 static VALUE
-request_read(VALUE x, VALUE rb_request, VALUE nbyte)
+request_read(VALUE x, VALUE rb_request, VALUE want)
 {
   ebb_request *request;
-  VALUE body = rb_iv_get(rb_request, "@body");
-
   Data_Get_Struct(rb_request, ebb_request, request);
   ebb_connection *connection = request_get_connection(request);
-  if(connection == NULL) 
+  if(connection == NULL)
     return Qnil;
 
+  VALUE body = rb_iv_get(rb_request, "@body");
+
   if(RARRAY_LEN(body) > 0) {
+    /* ignore how much they want! haha */
+    return rb_ary_shift(body);
     
-  } else if(ebb_request_has_body(request)) {
+  } if(ebb_request_has_body(request)) {
     return Qnil;
 
   } else {
@@ -547,6 +548,7 @@ Init_ebb_ffi()
   rb_define_singleton_method(mFFI, "connection_write", connection_write, 2);
 
   rb_define_singleton_method(mFFI, "request_should_keep_alive?", request_should_keep_alive, 1);
+  rb_define_singleton_method(mFFI, "request_read", request_read, 2);
   
   cRequest = rb_define_class_under(mEbb, "Request", rb_cObject);
   cConnection = rb_define_class_under(mEbb, "Connection", rb_cObject);
