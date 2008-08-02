@@ -1,20 +1,9 @@
 # A Web Server Called *Ebb*
 
 Ebb aims to be a small and fast web server specifically for hosting 
-dynamic web applications. It is not meant to be a full featured web server
-like Lighttpd, Apache, or Nginx. Rather it should be used in multiplicity
-behind a load balancer and a front-end server. It is not meant to serve static files in production.
+dynamic Ruby language web applications. 
 
-At one level Ebb is a minimalist C library that ties together the 
-[Mongrel state machine](http://mongrel.rubyforge.org/browser/tags/rel_1-0-1/ext/http11/http11_parser.rl) 
-and [libev](http://software.schmorp.de/pkg/libev.html) event loop. One can use
-this library to drive a web application written in C. (Perhaps for embedded 
-devices?) However, most people will be interested in the binding of this
-library to the Ruby programming language. The binding provides a
-[Rack](http://rack.rubyforge.org/) server interface that allows it to host
-Rails, Merb, or other frameworks.
-
-A Python-WSGI binding is under development.
+It is basically a binding to [libebb](http://tinyclouds.org/libebb)
 
 ## Install
 
@@ -22,13 +11,8 @@ The Ruby binding is available as a Ruby Gem. It can be install by executing
 
     gem install ebb
 
-Ebb depends on having glib2 headers and libraries installed. For example, in
-Macintosh if one is using Darwin ports then the following should do the trick
-  
-    port install glib2
-  
-Downloads are available at
-the [RubyForge project page](http://rubyforge.org/frs/?group_id=5640).
+If you want SSL support you must install GnuTLS.
+Ebb has no other dependencies.
 
 ## Running
 
