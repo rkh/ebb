@@ -56,6 +56,7 @@ static VALUE g_content_type;
 static VALUE g_http_client_ip;
 static VALUE g_http_prefix;
 static VALUE g_http_version;
+static VALUE g_empty_str;
 
 static VALUE g_COPY;
 static VALUE g_DELETE;
@@ -122,6 +123,22 @@ idle_cb (struct ev_loop *loop, struct ev_idle *w, int revents) {
      */
     detach_idle_watcher();
   }
+}
+
+static ebb_connection*
+request_get_connection(ebb_request *request)
+{
+  VALUE rb_request = (VALUE)request->data; 
+  VALUE rb_connection = rb_iv_get(rb_request, "@connection");
+  
+  if(rb_connection == Qnil) {
+    rb_raise(rb_eIOError, "read error - client connection closed");
+    return NULL;
+  }
+
+  ebb_connection *connection; 
+  Data_Get_Struct(rb_connection, ebb_connection, connection);
+  return connection;
 }
 
 #define APPEND_ENV(NAME) \
@@ -210,10 +227,18 @@ static void
 headers_complete(ebb_request *request)
 {
   VALUE rb_request = (VALUE)request->data; 
-  VALUE rb_connection = rb_iv_get(rb_request, "@connection");
-  ebb_connection *connection; 
-  Data_Get_Struct(rb_connection, ebb_connection, connection);
+  ebb_connection *connection = request_get_connection(request);
+  if(connection == NULL)
+    return;
+
   VALUE env = rb_iv_get(rb_request, "@env_ffi");
+
+  rb_iv_set(rb_request, "@content_length", INT2FIX(request->content_length));
+  rb_iv_set( rb_request
+           , "@chunked"
+           , request->transfer_encoding == EBB_CHUNKED ? Qtrue : Qfalse
+           );
+  rb_iv_set(rb_request, "@body_finished", Qfalse);
 
   /* set REQUEST_METHOD. yuck */
   VALUE method;
@@ -263,18 +288,49 @@ static void
 body_handler(ebb_request *request, const char *at, size_t length)
 {
   VALUE rb_request = (VALUE)request->data; 
-  VALUE body_parts = rb_iv_get(rb_request, "@body_parts");
-  VALUE chunk = rb_str_new(at, length);
+  VALUE body, chunk;
 
-  rb_ary_push(body_parts, chunk);
-  // TODO push to @body_parts inside rb_request
-  ;
+  if(length > 0)  {
+    body = rb_iv_get(rb_request, "@body");
+    chunk = rb_str_new(at, length);
+    rb_ary_push(body, chunk);
+  }
 }
 
 static void 
 request_complete(ebb_request *request)
 {
-  // TODO anything?
+  ;
+}
+
+static VALUE
+request_read(VALUE x, VALUE rb_request, VALUE nbyte)
+{
+  ebb_request *request;
+  VALUE body = rb_iv_get(rb_request, "@body");
+
+  Data_Get_Struct(rb_request, ebb_request, request);
+  ebb_connection *connection = request_get_connection(request);
+  if(connection == NULL) 
+    return Qnil;
+
+  if(RARRAY_LEN(body) > 0) {
+    
+  } else if(ebb_request_has_body(request)) {
+    return Qnil;
+
+  } else {
+    fd_set set;
+    FD_ZERO(&set);
+    FD_SET(connection->fd, &set);
+    rb_thread_select(connection->fd+1, &set, 0, 0, NULL);
+    /* hairy! wait for read - invoke the ev callback inside libebb */
+    ev_invoke(loop, &connection->read_watcher, EV_READ);
+    /* return empty string, next read call will get data -
+     * if all goes okay ! :) 
+     */ 
+    return g_empty_str;
+  }
 }
 
 static ebb_request* 
@@ -296,8 +352,8 @@ new_request(ebb_connection *connection)
    * will happen from the ruby garbage collector
    */
   VALUE rb_request = Data_Wrap_Struct(cRequest, 0, free, request);
-  rb_iv_set(rb_request, "@connection", (VALUE)connection->data);
   rb_iv_set(rb_request, "@env_ffi", rb_hash_new());
+  rb_iv_set(rb_request, "@body", rb_ary_new());
   //rb_iv_set(rb_request, "@value_in_progress", Qnil);
   //rb_iv_set(rb_request, "@field_in_progress", Qnil);
   request->data = (void*)rb_request;
@@ -305,6 +361,9 @@ new_request(ebb_connection *connection)
 
   VALUE rb_connection = (VALUE)connection->data;
   rb_iv_set(rb_connection, "@fd", INT2FIX(connection->fd));
+
+  //rb_iv_set(rb_request, "@connection", (VALUE)connection->data);
+  rb_funcall(rb_connection, rb_intern("append_request"), 1, rb_request);
 
   return request;
 }
@@ -455,6 +514,7 @@ Init_ebb_ffi()
   DEF_GLOBAL(http_client_ip, "HTTP_CLIENT_IP");
   DEF_GLOBAL(http_prefix, "HTTP_");
   DEF_GLOBAL(http_version, "HTTP_VERSION");
+  DEF_GLOBAL(empty_str, "");
 
   DEF_GLOBAL(COPY, "COPY");
   DEF_GLOBAL(DELETE, "DELETE");

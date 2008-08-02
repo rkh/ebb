@@ -96,7 +96,15 @@ module Ebb
       @@write_queues[self]
     end
 
+    def append_request(req)
+      @requests ||= []
+      req.connection = self
+      @requests.push req
+    end
+
     def on_close
+      # garbage collection ! 
+      @requests.each { |req| req.connection = nil }
       @@write_queues.delete(self)
     end
 
@@ -189,7 +197,7 @@ module Ebb
   end
   
   class Request
-    attr_reader :connection
+    attr_accessor :connection
     BASE_ENV = {
       'SERVER_NAME' => '0.0.0.0',
       'SCRIPT_NAME' => '',
@@ -222,10 +230,7 @@ module Ebb
         return env['HTTP_CONNECTION'] !~ /close/i
       end
     end
-    
   end
-  
-  
 end
 
 
