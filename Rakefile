@@ -3,38 +3,71 @@ require 'rake/testtask'
 require 'rake/gempackagetask'
 require 'rake/clean'
 
-def dir(path)
-  File.expand_path File.join(File.dirname(__FILE__), path)
+class String
+  def /(other)
+    File.join(self, other)
+  end
 end
 
-require dir('lib/ebb')
+require 'lib/ebb'
 
-DISTFILES = FileList.new('lib/**/*.rb', 'src/**/*.{rb,rl,c,h}', 'bin/*', 'README', 'Rakefile')
+libev_dist = "http://dist.schmorp.de/libev/"
+libev_release = "libev-3.43.tar.gz"
+libev_url = File.join(libev_dist, libev_release)
 
-CLEAN.add ["**/*.{o,bundle,so,obj,pdb,lib,def,exp}", "benchmark/*.dump", 'site/index.html', ]
+LIBEBBFILES = ['ebb.c', 'ebb.h',
+               'ebb_request_parser.rl', 'ebb_request_parser.c', 'ebb_request_parser.h', 
+               'rbtree.c', 'rbtree.h']
+SRCEBBFILES = LIBEBBFILES.map { |f| "src" / f }
 
-CLOBBER.add ['src/Makefile', 'src/ebb_request_parser.c', 'src/mkmf.log']
+DISTFILES = FileList.new('libev', 'lib/**/*.rb', 'src/*.{rb,rl,c,h}', 'bin/*', 'README', 'Rakefile') + SRCEBBFILES
+CLEAN.add ["**/*.{o,bundle,so,obj,pdb,lib,def,exp}", "benchmark/*.dump", 'site/index.html']
+CLOBBER.add ['src/Makefile', 'libev', 'src/mkmf.log', libev_release, '.libebb'] + SRCEBBFILES
 
 Rake::TestTask.new do |t|
   t.test_files = FileList.new("test/*.rb")
   t.verbose = true
 end
 
+LIBEBBFILES.each do |f|
+  file(".libebb"/f => ".libebb") 
+  file("src"/f => ".libebb"/f) do |t|
+    sh "cp .libebb/#{f} src/#{f}"
+  end
+end
+
 task(:default => [:compile])
 
-task(:compile => ['src/Makefile','src/ebb_request_parser.c'] + DISTFILES) do
-  sh "cd #{dir('src')} && make"
+task(:compile => ['src/Makefile','libev'] + SRCEBBFILES) do
+  sh "cd src && make"
+end
+
+file libev_release do
+  puts "downloading libev"
+  sh "wget #{libev_url}" do |ok, res|
+    if ! ok
+      puts "Couldn't download libev. Please put #{libev_url} in here and try again"
+      exit 1
+    end
+  end
+end
+
+file "libev" => libev_release do
+  sh "tar -zxf #{libev_release}"
+  sh "mv #{libev_release.sub('.tar.gz', '')} libev"
+end
+
+file ".libebb" do
+  sh "git clone git://github.com/ry/libebb.git .libebb"
 end
 
 file('src/Makefile' => 'src/extconf.rb') do
-    sh "cd #{dir('src')} && ruby extconf.rb"
+  sh "cd src && ruby extconf.rb"
 end
 
-file('src/ebb_request_parser.c' => 'src/ebb_request_parser.rl') do
-  sh 'ragel -s -G2 src/ebb_request_parser.rl'
+file_create(".libebb/ebb_request_parser.c" => '.libebb/ebb_request_parser.rl') do
+  sh 'ragel -s -G2 .libebb/ebb_request_parser.rl'
 end
-
-task(:wc) { sh "wc -l ruby_lib/*.rb src/ebb*.{c,h}" }
 
 task(:test => DISTFILES)
 Rake::TestTask.new do |t|

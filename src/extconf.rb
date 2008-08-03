@@ -31,14 +31,13 @@ if have_header('sys/inotify.h')
 end
 
 dir = File.dirname(__FILE__)
-libev_dir = File.expand_path(dir + '/libev')
+libev_dir = File.expand_path(dir + '/../libev')
 
-$LDFLAGS << " -lefence "
+#$LDFLAGS << " -lefence "
 $CFLAGS << " -I#{libev_dir} " << flags.join(' ')
 $defs << "-DRUBY_VERSION_CODE=#{RUBY_VERSION.gsub(/\D/, '')}"
 
-
-$srcs = ['ebb_ffi.c', 'ebb.c', "ebb_request_parser.c", "rbtree.c"]
+$srcs = ['ebb_ffi.c', "ebb.c", "ebb_request_parser.c", "rbtree.c"]
 $objs = ['ebb_ffi.o', "ebb.o", "ebb_request_parser.o", "rbtree.o"]
 
 dir_config('ebb_ffi')
