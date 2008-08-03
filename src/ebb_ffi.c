@@ -275,7 +275,11 @@ headers_complete(ebb_request *request)
   /* set HTTP_VERSION */
   VALUE version = rb_str_buf_new(11);
   sprintf(RSTRING_PTR(version), "HTTP/%d.%d", request->version_major, request->version_minor);
+#ifdef rb_str_set_len
   rb_str_set_len(version, strlen(RSTRING_PTR(version)));
+#else
+  RSTRING_LEN(version) = strlen(RSTRING_PTR(version));
+#endif
   rb_hash_aset(env, g_http_version, version);
 
   rb_ary_push(waiting_requests, rb_request);

@@ -11,7 +11,7 @@ end
 
 require 'lib/ebb'
 
-libev_dist = "http://dist.schmorp.de/libev/"
+libev_dist = "http://dist.schmorp.de/libev/Attic"
 libev_release = "libev-3.43.tar.gz"
 libev_url = File.join(libev_dist, libev_release)
 
@@ -65,7 +65,7 @@ file('src/Makefile' => 'src/extconf.rb') do
   sh "cd src && ruby extconf.rb"
 end
 
-file_create(".libebb/ebb_request_parser.c" => '.libebb/ebb_request_parser.rl') do
+file(".libebb/ebb_request_parser.c" => '.libebb/ebb_request_parser.rl') do
   sh 'ragel -s -G2 .libebb/ebb_request_parser.rl'
 end
 
