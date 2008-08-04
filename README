@@ -3,7 +3,7 @@
 Ebb aims to be a small and fast web server specifically for hosting 
 dynamic Ruby language web applications. 
 
-It is basically a binding to [libebb](http://tinyclouds.org/libebb)
+It is a binding to [libebb](http://tinyclouds.org/libebb)
 
 ## Install
 
@@ -37,6 +37,8 @@ hacking at the moment! :)
 
 ## Speed
 
+(these stats are out of date)
+
 Because Ebb handles most of the processing in C, it is able to do work
 often times more efficiently than other Ruby language web servers.
 
@@ -59,14 +61,9 @@ can be retrieved by executing
 
     git clone git://github.com/ry/ebb.git
 
-Here are some features that I would like to add:
-* HTTP 1.1 Expect/Continue (RFC 2616, sections 8.2.3 and 10.1.1)
-* A parser for multipart/form-data (only for optimization - this functionality is currently handled at the framework level)
-* Python binding
-
 ## (The MIT) License
 
-Copyright © 2008 [Ry Dahl](http://tinyclouds.org) (ry at tiny clouds dot org)
+Copyright © 2008 [Ryah Dahl](http://tinyclouds.org) (ry at tiny clouds dot org)
 
 <div id="license">
 Permission is hereby granted, free of charge, to any person obtaining

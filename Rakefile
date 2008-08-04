@@ -77,8 +77,9 @@ task(:site_upload => :site) do
 end
 task(:site => 'site/index.html')
 file('site/index.html' => %w{README site/style.css}) do
-  require 'BlueCloth'
-  doc = BlueCloth.new(File.read(dir('README')))
+  require 'rubygems'
+  require 'bluecloth'
+  doc = BlueCloth.new(File.read('README'))
   template = <<-HEREDOC
 <html>
   <head>
@@ -93,7 +94,7 @@ file('site/index.html' => %w{README site/style.css}) do
 </html>
 HEREDOC
   
-  File.open(dir('site/index.html'), "w+") do |f|
+  File.open('site/index.html', "w+") do |f|
     f.write template.sub('CONTENT', doc.to_html)
   end
 end
