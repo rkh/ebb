@@ -6,6 +6,8 @@ if pkg_config("gnutls")
   flags << '-DHAVE_GNUTLS'
 end
 
+flags << '-DEV_USE_MONOTONIC=0'
+
 if have_header('sys/select.h')
   flags << '-DEV_USE_SELECT'
 end

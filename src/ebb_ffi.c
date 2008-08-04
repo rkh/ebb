@@ -86,42 +86,38 @@ static void detach_idle_watcher()
   ev_idle_stop(loop, &idle_watcher);
 }
 
-static struct timeval idle_timeout = { 0, 50000 };
-
 static void
 idle_cb (struct ev_loop *loop, struct ev_idle *w, int revents) {
-  /* How to let other Ruby threads run while we're in this blocking C call */
+  /* Ryan's Hacky Ruby Thread Scheduler */
 
-  /* TODO: For Ruby 1.9 I should use rb_thread_blocking_region() instead of 
-   * this hacky idle_cb
+  /* TODO: For Ruby 1.9 I should use rb_thread_blocking_region() instead of
+   * this hacky idle_cb. Of course then I couldn't use rb_funcall in the
+   * callbacks.. it might be easier to just use this!
    */
-  
-  if(nconnections > 0) {
-    /* If ruby has control of any clients - that means there are some requests
-     * still being processed inside of threads. We need to allow Ruby some
-     * time to work on these threads so we call rb_thread_schedule()
-     * I don't use rb_thread_select() here because it is very slow.
-     */
-    rb_thread_schedule();
-
-  } else if(!rb_thread_alone()) {
-    /* If no clients are in use, but there are still other Ruby threads then
-     * some other thread is running in the Ruby VM which is not a request.
-     * This is a sub-optimal situation and we solve it by calling 
-     * rb_thread_select() to wait for the server fd to wake up.
-     * One should try to avoid entering this state.
-     */
-    fd_set server_fd_set;
-    FD_ZERO(&server_fd_set);
-    FD_SET(server.fd, &server_fd_set);
-    rb_thread_select(server.fd+1, &server_fd_set, 0, 0, &idle_timeout);
-  } else {
-    /* Otherwise there are no other threads. We can detach the idle_watcher
-     * and allow the server_process_connections() to block until the 
-     * server fd wakes up. Because we don't use rb_thread_select() this
-     * is quite fast.
+  if(rb_thread_alone()) {
+    /* best option: just stop calling idle_cb and wait for the 
+     * server fd to wake up by sitting in the libev loop. This
+     * should be very fast.
      */
     detach_idle_watcher();
+  } else if(nconnections > 0) {
+    /* second best option: there are other threads running and there
+     * are clients to process. here we'll just call rb_thread_schedule()
+     * because it doesn't take much time and allows those workers to run.
+     */
+    rb_thread_schedule();
+  } else {
+    /* worst case: there are no clients to process but there is some long
+     * running thread. we use rb_thread_select() which is slow to wake up
+     * but allows us to wait until the server has a new connection.
+     * Try to avoid this - do not let threads run in the background of the
+     * server.
+     */
+     struct timeval idle_timeout = { 0, 50000 };
+     fd_set server_fd_set;
+     FD_ZERO(&server_fd_set);
+     FD_SET(server.fd, &server_fd_set);
+     rb_thread_select(server.fd+1, &server_fd_set, 0, 0, &idle_timeout);
   }
 }
 
