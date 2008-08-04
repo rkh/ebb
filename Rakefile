@@ -22,7 +22,7 @@ SRCEBBFILES = LIBEBBFILES.map { |f| "src" / f }
 
 DISTFILES = FileList.new('libev', 'lib/**/*.rb', 'src/*.{rb,rl,c,h}', 'bin/*', 'README', 'Rakefile') + SRCEBBFILES
 CLEAN.add ["**/*.{o,bundle,so,obj,pdb,lib,def,exp}", "benchmark/*.dump", 'site/index.html']
-CLOBBER.add ['src/Makefile', 'libev', 'src/mkmf.log', libev_release, '.libebb'] + SRCEBBFILES
+CLOBBER.add ['src/Makefile', 'src/mkmf.log'] + SRCEBBFILES
 
 Rake::TestTask.new do |t|
   t.test_files = FileList.new("test/*.rb")
@@ -42,7 +42,7 @@ task(:compile => ['src/Makefile','libev'] + SRCEBBFILES) do
   sh "cd src && make"
 end
 
-file libev_release do
+file "libev" do
   puts "downloading libev"
   sh "wget #{libev_url}" do |ok, res|
     if ! ok
@@ -50,9 +50,6 @@ file libev_release do
       exit 1
     end
   end
-end
-
-file "libev" => libev_release do
   sh "tar -zxf #{libev_release}"
   sh "mv #{libev_release.sub('.tar.gz', '')} libev"
 end

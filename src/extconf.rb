@@ -40,5 +40,7 @@ $defs << "-DRUBY_VERSION_CODE=#{RUBY_VERSION.gsub(/\D/, '')}"
 $srcs = ['ebb_ffi.c', "ebb.c", "ebb_request_parser.c", "rbtree.c"]
 $objs = ['ebb_ffi.o', "ebb.o", "ebb_request_parser.o", "rbtree.o"]
 
+CONFIG['warnflags'] = ""
+
 dir_config('ebb_ffi')
 create_makefile('ebb_ffi')

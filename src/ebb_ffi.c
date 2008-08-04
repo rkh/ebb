@@ -198,7 +198,7 @@ header_field(ebb_request *request, const char *at, size_t len, int _)
     // normalize
     for(i = 0; i < len; i++) {
       char *ch = RSTRING_PTR(f) + RSTRING_LEN(g_http_prefix) + i;
-      *ch = upcase[at[i]];
+      *ch = upcase[(int)at[i]];
     }
     rb_iv_set(rb_request, "@field_in_progress", f);
     rb_iv_set(rb_request, "@value_in_progress", Qnil);
@@ -240,22 +240,22 @@ headers_complete(ebb_request *request)
            );
 
   /* set REQUEST_METHOD. yuck */
-  VALUE method;
+  VALUE method = Qnil;
   switch(request->method) {
-  case EBB_COPY      : method = g_COPY      ; break;
-  case EBB_DELETE    : method = g_DELETE    ; break;
-  case EBB_GET       : method = g_GET       ; break;
-  case EBB_HEAD      : method = g_HEAD      ; break;
-  case EBB_LOCK      : method = g_LOCK      ; break;
-  case EBB_MKCOL     : method = g_MKCOL     ; break;
-  case EBB_MOVE      : method = g_MOVE      ; break;
-  case EBB_OPTIONS   : method = g_OPTIONS   ; break;
-  case EBB_POST      : method = g_POST      ; break;
-  case EBB_PROPFIND  : method = g_PROPFIND  ; break;
-  case EBB_PROPPATCH : method = g_PROPPATCH ; break;
-  case EBB_PUT       : method = g_PUT       ; break;
-  case EBB_TRACE     : method = g_TRACE     ; break;
-  case EBB_UNLOCK    : method = g_UNLOCK    ; break;
+    case EBB_COPY      : method = g_COPY      ; break;
+    case EBB_DELETE    : method = g_DELETE    ; break;
+    case EBB_GET       : method = g_GET       ; break;
+    case EBB_HEAD      : method = g_HEAD      ; break;
+    case EBB_LOCK      : method = g_LOCK      ; break;
+    case EBB_MKCOL     : method = g_MKCOL     ; break;
+    case EBB_MOVE      : method = g_MOVE      ; break;
+    case EBB_OPTIONS   : method = g_OPTIONS   ; break;
+    case EBB_POST      : method = g_POST      ; break;
+    case EBB_PROPFIND  : method = g_PROPFIND  ; break;
+    case EBB_PROPPATCH : method = g_PROPPATCH ; break;
+    case EBB_PUT       : method = g_PUT       ; break;
+    case EBB_TRACE     : method = g_TRACE     ; break;
+    case EBB_UNLOCK    : method = g_UNLOCK    ; break;
   }
   rb_hash_aset(env, g_request_method, method);
 
@@ -275,10 +275,10 @@ headers_complete(ebb_request *request)
   /* set HTTP_VERSION */
   VALUE version = rb_str_buf_new(11);
   sprintf(RSTRING_PTR(version), "HTTP/%d.%d", request->version_major, request->version_minor);
-#ifdef rb_str_set_len
-  rb_str_set_len(version, strlen(RSTRING_PTR(version)));
-#else
+#if RUBY_VERSION_CODE < 187
   RSTRING_LEN(version) = strlen(RSTRING_PTR(version));
+#else
+  rb_str_set_len(version, strlen(RSTRING_PTR(version)));
 #endif
   rb_hash_aset(env, g_http_version, version);
 
@@ -469,7 +469,6 @@ static VALUE
 connection_write(VALUE _, VALUE rb_connection, VALUE chunk) 
 {
   ebb_connection *connection; 
-  ebb_buf *buf;
   Data_Get_Struct(rb_connection, ebb_connection, connection);
   
   int r = 

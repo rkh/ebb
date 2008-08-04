@@ -1,5 +1,5 @@
 require 'rubygems'
-require File.dirname(__FILE__) + '/../ruby_lib/ebb'
+require File.dirname(__FILE__) + '/../lib/ebb'
 require 'test/unit'
 require 'net/http'
 require 'socket'
