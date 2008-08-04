@@ -363,7 +363,7 @@ new_request(ebb_connection *connection)
   VALUE rb_connection = (VALUE)connection->data;
   rb_iv_set(rb_connection, "@fd", INT2FIX(connection->fd));
 
-  //rb_iv_set(rb_request, "@connection", (VALUE)connection->data);
+  rb_iv_set(rb_request, "@connection", (VALUE)connection->data);
   rb_funcall(rb_connection, rb_intern("append_request"), 1, rb_request);
 
   return request;
@@ -391,6 +391,7 @@ new_connection(ebb_server *server, struct sockaddr_in *addr)
   //rb_iv_set(rb_connection, "@to_write", rb_ary_new());
   connection->data = (void*)rb_connection;
   rb_obj_call_init(rb_connection, 0, 0);
+  rb_funcall(rb_connection, rb_intern("on_open"), 0, 0);
 
   nconnections += 1;
 

@@ -85,13 +85,9 @@ module Ebb
 
     # TODO chunk encode the response if have chunked encoding
 
-    if queue = Connection.write_queues[req.connection]
-      queue << res  
-    else
-      queue = Connection.write_queues[req.connection] = Array.new
-      queue << res
-      req.connection.start_writing  
-    end
+    response_queue = Connection.write_queues[req.connection]
+    response_queue << res  
+    req.connection.start_writing if response_queue.length == 1 
   end
 
   class Connection
@@ -113,9 +109,12 @@ module Ebb
     end
 
     def append_request(req)
-      @requests ||= []
-      req.connection = self
       @requests.push req
+    end
+
+    def on_open
+      @requests = []
+      @@write_queues[self] = []
     end
 
     def on_close
