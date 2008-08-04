@@ -337,7 +337,7 @@ request_read(VALUE x, VALUE rb_request, VALUE want)
 static ebb_request* 
 new_request(ebb_connection *connection)
 {
-  ebb_request *request = malloc(sizeof(ebb_request));
+  ebb_request *request = ALLOC(ebb_request);
   ebb_request_init(request);
   request->on_path = request_path;
   request->on_query_string = query_string;
@@ -352,7 +352,7 @@ new_request(ebb_connection *connection)
   /*** NOTE ebb_request is freed with the rb_request is freed whic
    * will happen from the ruby garbage collector
    */
-  VALUE rb_request = Data_Wrap_Struct(cRequest, 0, free, request);
+  VALUE rb_request = Data_Wrap_Struct(cRequest, 0, xfree, request);
   rb_iv_set(rb_request, "@env_ffi", rb_hash_new());
   rb_iv_set(rb_request, "@body", rb_ary_new());
   //rb_iv_set(rb_request, "@value_in_progress", Qnil);
@@ -374,14 +374,14 @@ on_close(ebb_connection *connection)
 {
   VALUE rb_connection = (VALUE)connection->data;
   rb_funcall(rb_connection, rb_intern("on_close"), 0, 0);
-  free(connection);
+  xfree(connection);
   nconnections -= 1;
 }
 
 static ebb_connection* 
 new_connection(ebb_server *server, struct sockaddr_in *addr)
 {
-  ebb_connection *connection = malloc(sizeof(ebb_connection));
+  ebb_connection *connection = ALLOC(ebb_connection);
 
   ebb_connection_init(connection);
   connection->new_request = new_request;
