@@ -70,16 +70,14 @@ module Ebb
     res = Response.new(status, headers, body)
     res.last = !req.keep_alive?
 
-    # I use a non-rack body.shift method.
-    # because its not very useful in an evented manor
-    # i hope chris will change this soon
+    # FIXME
     unless body.respond_to?(:shift)
       if body.kind_of?(String)
         body = [body]
       else
         b = []
         body.each { |chunk| b << chunk }
-        body = c
+        body = b
       end
     end
 
