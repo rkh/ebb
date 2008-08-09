@@ -5,7 +5,6 @@ require 'stringio'
 module Ebb
   VERSION = "0.3.0"
   LIBDIR = File.dirname(__FILE__)
-  autoload :Runner, LIBDIR + '/ebb/runner'
   autoload :FFI, LIBDIR + '/../ext/ebb_ffi'
   
   def self.running?

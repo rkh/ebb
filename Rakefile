@@ -110,7 +110,6 @@ spec = Gem::Specification.new do |s|
   s.version = Ebb::VERSION
   s.rubyforge_project = 'ebb'
   
-  s.add_dependency('rack')
   s.required_ruby_version = '>= 1.8.4'
   
   s.require_path = 'ruby_lib'
