@@ -6,7 +6,7 @@ module Ebb
   VERSION = "0.3.0"
   LIBDIR = File.dirname(__FILE__)
   autoload :Runner, LIBDIR + '/ebb/runner'
-  autoload :FFI, LIBDIR + '/../src/ebb_ffi'
+  autoload :FFI, LIBDIR + '/../ext/ebb_ffi'
   
   def self.running?
     FFI::server_open?
@@ -33,14 +33,14 @@ module Ebb
 
     if options.has_key?(:ssl_cert) and options.has_key?(:ssl_key)
       unless FFI.respond_to?(:server_set_secure)
-        puts "ebb compiled without ssl support. get gnutls" 
+        log.puts "ebb compiled without ssl support. get gnutls" 
       else
         cert_file = options[:ssl_cert]
         key_file = options[:ssl_key]
         if FileTest.readable?(cert_file) and FileTest.readable?(cert_file)
           FFI::server_set_secure(cert_file, key_file);
         else 
-          puts "error opening certificate or key file"
+          log.puts "error opening certificate or key file"
         end
       end
     end
@@ -48,7 +48,7 @@ module Ebb
     log.puts "Ebb PID #{Process.pid}"
     
     @running = true
-    Connection.reset_write_queues
+    Connection.reset_responses
     trap('INT')  { stop_server }
 
     while @running
@@ -65,97 +65,145 @@ module Ebb
   end
   
   def self.process(app, req)
-    # p req.env
-    status, headers, body = app.call(req.env)
-    res = Response.new(status, headers, body)
-    res.last = !req.keep_alive?
+    res = req.response
+    req.connection.responses << res
 
-    # FIXME
-    unless body.respond_to?(:shift)
-      if body.kind_of?(String)
-        body = [body]
-      else
-        b = []
-        body.each { |chunk| b << chunk }
-        body = b
-      end
+    # p req.env
+    status = headers = body = nil
+    catch(:async) do 
+      status, headers, body = app.call(req.env)
     end
 
-    # TODO chunk encode the response if have chunked encoding
+    # James Tucker's async response scheme
+    # check out
+    # http://github.com/raggi/thin/tree/async_for_rack/example/async_app.ru
+    res.call(status, headers, body) if status != 0 
+    # if status == 0 then the application promises to call
+    # env['async.callback'].call(status, headers, body) 
+    # later on...
 
-    response_queue = Connection.write_queues[req.connection]
-    response_queue << res  
-    req.connection.start_writing if response_queue.length == 1 
   end
 
   class Connection
-    def self.reset_write_queues
-      @@write_queues = {}
+    def self.reset_responses
+      @@responses = {} # used for memory management :|
     end
 
-    def self.write_queues
-      @@write_queues
+    def self.responses
+      @@responses
     end
 
-    def start_writing
-      res = queue.first
-      FFI::connection_write(self, res.chunk)
+    def responses
+      @@responses[self]
     end
 
-    def queue
-      @@write_queues[self]
-    end
-
+    # called from c
     def append_request(req)
       @requests.push req
     end
 
     def on_open
       @requests = []
-      @@write_queues[self] = []
+      @@responses[self] = []
     end
 
     def on_close
       # garbage collection ! 
       @requests.each { |req| req.connection = nil }
-      @@write_queues.delete(self)
+      responses.each { |res| res.connection = nil }
+      @@responses.delete(self)
     end
 
+    def writing?
+      ! @being_written.nil?
+    end
+
+    def write
+      return if writing?
+      return unless res = responses.first
+      return if res.output.empty?
+      # NOTE: connection_write does not buffer!
+      chunk = res.output.shift
+      @being_written = chunk # need to store this so ruby doesn't gc it
+      FFI::connection_write(self, chunk) 
+    end
+
+    # called after FFI::connection_write if complete
     def on_writable
-      if queue.empty?
-        @@write_queues.delete(self)
-      else
-        res = queue.first
-        if chunk = res.shift
-          FFI::connection_write(self, chunk)
-        else
-          if res.last
-            FFI::connection_schedule_close(self) 
-            @@write_queues.delete(self)
-          else
-            queue.shift # write nothing. we'll get'em next time
-          end
+      @being_written = nil
+      return unless res = responses.first
+      if res.finished?
+        responses.shift
+        if res.last 
+          FFI::connection_schedule_close(self) 
+          return
         end
-      end
+      end 
+      write
     end
   end
     
   class Response
-    attr_reader :chunk
-    attr_accessor :last
-    def initialize(status, headers, body)
-      @body = body
-      @chunk = "HTTP/1.1 #{status} #{HTTP_STATUS_CODES[status.to_i]}\r\n"
-      headers.each { |field, value| @chunk << "#{field}: #{value}\r\n" }
-      @chunk << "\r\n#{@body.shift}" 
-      @last = false
+    attr_reader :output
+    attr_accessor :last, :connection
+    def initialize(connection, last)
+      @connection = connection
+      @last = last
+      @output = []
+      @finished = false
+      @chunked = false 
     end
 
-    # if returns nil, there is nothing else to write
-    # otherwise returns then next chunk needed to write.
-    # on writable call connection.write(response.shift) 
-    def shift
-      @chunk = @body.shift
+    def call(status, headers, body)
+      @head = "HTTP/1.1 #{status} #{HTTP_STATUS_CODES[status.to_i]}\r\n"
+      headers.each { |field, value| @head << "#{field}: #{value}\r\n" }
+      @head << "\r\n"
+
+      # XXX i would prefer to do
+      # @chunked = true unless body.respond_to?(:length)
+      @chunked = true if headers["Transfer-Encoding"] == "chunked"
+      # I also don't like this
+      @last = true if headers["Connection"] == "close"
+
+      # Note: not setting Content-Length. do it yourself.
+      
+      body.each do |chunk| 
+        if @head.nil?
+          write(chunk) 
+        else
+          write(@head + chunk) 
+          @head = nil
+        end
+        @connection.write
+      end
+
+      body.on_error { close } if body.respond_to?(:on_error)
+
+      if body.respond_to?(:on_eof)
+        body.on_eof { finish }
+      else
+        finish
+      end
+
+      # deferred requests SHOULD NOT respond to close
+      body.close if body.respond_to?(:close)
+    end
+
+    def finished?
+      @output.empty? and @finished
+    end
+
+    def finish
+      @finished = true 
+      if @chunked
+        write("") 
+        @connection.write
+      end
+    end
+    
+    def write(chunk)
+      encoded = @chunked ? "#{chunk.length.to_s(16)}\r\n#{chunk}\r\n" : chunk
+      @output << encoded
     end
 
     HTTP_STATUS_CODES = {
@@ -223,30 +271,30 @@ module Ebb
       'rack.multiprocess' => false,
       'rack.run_once' => false
     }
+    
+    def env
+      @env ||= begin
+        env = BASE_ENV.merge(@env_ffi)
+        env['rack.input'] = self 
+        env['CONTENT_LENGTH'] = env['HTTP_CONTENT_LENGTH']
+        env['async.callback'] = response
+        env
+      end
+    end
 
     def keep_alive?
       FFI::request_should_keep_alive?(self)
     end
-    
-    def env
-      @env ||= begin
-        env = @env_ffi.update(BASE_ENV)
-        env['CONTENT_LENGTH'] = env['HTTP_CONTENT_LENGTH']
-        env['rack.input'] = self 
-        env
+
+    def response
+      @response ||= begin
+        last = !keep_alive? # this is the last response if the request isnt keep-alive
+        Response.new(@connection, last)
       end
     end
 
     def read(want = 1024)
       FFI::request_read(self, want)
-    end
-
-    def should_keep_alive?
-      if env['HTTP_VERSION'] == 'HTTP/1.0'
-        return env['HTTP_CONNECTION'] =~ /Keep-Alive/i
-      else
-        return env['HTTP_CONNECTION'] !~ /close/i
-      end
     end
   end
 end

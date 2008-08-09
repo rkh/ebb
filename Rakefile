@@ -18,11 +18,11 @@ libev_url = File.join(libev_dist, libev_release)
 LIBEBBFILES = ['ebb.c', 'ebb.h',
                'ebb_request_parser.rl', 'ebb_request_parser.c', 'ebb_request_parser.h', 
                'rbtree.c', 'rbtree.h']
-SRCEBBFILES = LIBEBBFILES.map { |f| "src" / f }
+SRCEBBFILES = LIBEBBFILES.map { |f| "ext" / f }
 
-DISTFILES = FileList.new('libev', 'lib/**/*.rb', 'src/*.{rb,rl,c,h}', 'bin/*', 'README', 'Rakefile') + SRCEBBFILES
+DISTFILES = FileList.new('libev', 'lib/**/*.rb', 'ext/*.{rb,rl,c,h}', 'bin/*', 'README', 'Rakefile') + SRCEBBFILES
 CLEAN.add ["**/*.{o,bundle,so,obj,pdb,lib,def,exp}", "benchmark/*.dump", 'site/index.html']
-CLOBBER.add ['src/Makefile', 'src/mkmf.log'] + SRCEBBFILES
+CLOBBER.add ['ext/Makefile', 'ext/mkmf.log'] + SRCEBBFILES
 
 Rake::TestTask.new do |t|
   t.test_files = FileList.new("test/*.rb")
@@ -31,15 +31,15 @@ end
 
 LIBEBBFILES.each do |f|
   file(".libebb"/f => ".libebb") 
-  file("src"/f => ".libebb"/f) do |t|
-    sh "cp .libebb/#{f} src/#{f}"
+  file("ext"/f => ".libebb"/f) do |t|
+    sh "cp .libebb/#{f} ext/#{f}"
   end
 end
 
 task(:default => [:compile])
 
-task(:compile => ['src/Makefile','libev'] + SRCEBBFILES) do
-  sh "cd src && make"
+task(:compile => ['ext/Makefile','libev'] + SRCEBBFILES) do
+  sh "cd ext && make"
 end
 
 file "libev" do
@@ -58,8 +58,8 @@ file ".libebb" do
   sh "git clone git://github.com/ry/libebb.git .libebb"
 end
 
-file('src/Makefile' => 'src/extconf.rb') do
-  sh "cd src && ruby extconf.rb"
+file('ext/Makefile' => 'ext/extconf.rb') do
+  sh "cd ext && ruby extconf.rb"
 end
 
 file(".libebb/ebb_request_parser.c" => '.libebb/ebb_request_parser.rl') do
@@ -114,7 +114,7 @@ spec = Gem::Specification.new do |s|
   s.required_ruby_version = '>= 1.8.4'
   
   s.require_path = 'ruby_lib'
-  s.extensions = 'src/extconf.rb'
+  s.extensions = 'ext/extconf.rb'
   s.bindir = 'bin'
   s.executables = %w(ebb_rails)
   
