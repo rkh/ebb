@@ -112,7 +112,7 @@ spec = Gem::Specification.new do |s|
   
   s.required_ruby_version = '>= 1.8.4'
   
-  s.require_path = 'ruby_lib'
+  s.require_path = 'lib'
   s.extensions = 'ext/extconf.rb'
   
   s.files = DISTFILES
