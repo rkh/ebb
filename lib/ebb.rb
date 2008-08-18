@@ -4,6 +4,7 @@
 
 module Ebb
   VERSION = "0.3.0"
+  VERSION_STRING = "Ebb #{VERSION}"
   LIBDIR = File.dirname(__FILE__)
   autoload :FFI, LIBDIR + '/../ext/ebb_ffi'
   
@@ -258,26 +259,26 @@ module Ebb
   
   class Request
     attr_accessor :connection
-    BASE_ENV = {
-      'SERVER_NAME' => '0.0.0.0',
-      'SCRIPT_NAME' => '',
-      'QUERY_STRING' => '',
-      'SERVER_SOFTWARE' => "Ebb #{Ebb::VERSION}",
-      'SERVER_PROTOCOL' => 'HTTP/1.1',
-      'rack.version' => [0, 1],
-      'rack.errors' => STDERR,
-      'rack.url_scheme' => 'http',
-      'rack.multiprocess' => false,
-      'rack.run_once' => false
-    }
+    BASE_ENV = 
     
     def env
       @env ||= begin
-        env = BASE_ENV.merge(@env_ffi)
-        env['rack.input'] = self 
-        env['CONTENT_LENGTH'] = env['HTTP_CONTENT_LENGTH']
-        env['async.callback'] = response
-        env
+        @env_ffi.update(
+          'SERVER_NAME' => '0.0.0.0',
+          'SCRIPT_NAME' => '',
+          'SERVER_SOFTWARE' => Ebb::VERSION_STRING,
+          'SERVER_PROTOCOL' => 'HTTP/1.1',
+          'rack.version' => [0, 1],
+          'rack.errors' => STDERR,
+          'rack.url_scheme' => 'http',
+          'rack.multiprocess' => false,
+          'rack.run_once' => false,
+
+          'rack.input' => self,
+          'async.callback' => response,
+          'CONTENT_LENGTH' => @env_ffi.delete('HTTP_CONTENT_LENGTH'),
+          'CONTENT_TYPE' => @env_ffi.delete('HTTP_CONTENT_TYPE')
+        )
       end
     end
 

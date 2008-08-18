@@ -278,6 +278,11 @@ headers_complete(ebb_request *request)
 #endif
   rb_hash_aset(env, g_http_version, version);
 
+  /* make sure QUERY_STRING is set */
+  if(Qnil == rb_hash_aref(env, g_query_string)) {
+    rb_hash_aset(env, g_query_string, g_empty_str);
+  }
+
   rb_ary_push(waiting_requests, rb_request);
   attach_idle_watcher();
   // TODO set to detached if it has body
