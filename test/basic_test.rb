@@ -36,11 +36,11 @@ class BasicTestFD < ServerTestFD
   include BasicTests
 end
 
-class BasicTestUnixSocket < ServerTestSocket
-  include BasicTests
-  
-  def test_socket_file_exists
-    assert File.exists?(@socketfile)
-    assert File.readable?(@socketfile)
-  end
-end
+#class BasicTestUnixSocket < ServerTestSocket
+#  include BasicTests
+#  
+#  def test_socket_file_exists
+#    assert File.exists?(@socketfile)
+#    assert File.readable?(@socketfile)
+#  end
+#end

@@ -1,7 +1,7 @@
 # Ruby Binding to the Ebb Web Server
 # Copyright (c) 2008 Ry Dahl. This software is released under the MIT License.
 # See README file for details.
-require 'stringio'
+
 module Ebb
   VERSION = "0.3.0"
   LIBDIR = File.dirname(__FILE__)
