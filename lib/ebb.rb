@@ -43,6 +43,7 @@ module Ebb
           log.puts "error opening certificate or key file"
         end
       end
+    end
 
     unless options[:docroot].nil?
       @@docroot = options[:docroot]
@@ -75,7 +76,6 @@ module Ebb
     res = req.response
     req.connection.responses << res
 
-    # p req.env
     status = headers = body = nil
     catch(:async) do 
       status, headers, body = app.call(req.env)
@@ -164,16 +164,26 @@ module Ebb
 
     def call(status, headers, body)
       @head = "HTTP/1.1 #{status} #{HTTP_STATUS_CODES[status.to_i]}\r\n"
-      headers.each { |field, value| @head << "#{field}: #{value}\r\n" }
-      @head << "\r\n"
+
+      # Hack to be compatible with frameworks who return Strings.
+      if body.kind_of?(String)
+        headers["Content-Length"] = body.length.to_s
+        body = [body]
+      end
 
       # XXX i would prefer to do
       # @chunked = true unless body.respond_to?(:length)
-      @chunked = true if headers["Transfer-Encoding"] == "chunked"
+      if headers["Transfer-Encoding"] == "chunked" or 
+         !headers.has_key?("Content-Length") 
+      then
+        headers["Transfer-Encoding"] = "chunked"
+        @chunked = true 
+      end
       # I also don't like this
       @last = true if headers["Connection"] == "close"
 
-      # Note: not setting Content-Length. do it yourself.
+      headers.each { |field, value| @head << "#{field}: #{value}\r\n" }
+      @head << "\r\n"
       
       body.each do |chunk| 
         write(chunk) 
@@ -264,25 +274,34 @@ module Ebb
   
   class Request
     attr_accessor :connection
+
+    BASE_ENV = {
+      'SERVER_NAME' => '0.0.0.0',
+      'SCRIPT_NAME' => '',
+      'SERVER_SOFTWARE' => Ebb::VERSION_STRING,
+      'SERVER_PROTOCOL' => 'HTTP/1.1',
+      'rack.version' => [0, 1],
+      'rack.errors' => STDERR,
+      'rack.url_scheme' => 'http',
+      'rack.multiprocess' => false,
+      'rack.run_once' => false
+    }
     
     def env
       @env ||= begin
-        @env_ffi.update(
-          'SERVER_NAME' => '0.0.0.0',
-          'SCRIPT_NAME' => '',
-          'SERVER_SOFTWARE' => Ebb::VERSION_STRING,
-          'SERVER_PROTOCOL' => 'HTTP/1.1',
-          'rack.version' => [0, 1],
-          'rack.errors' => STDERR,
-          'rack.url_scheme' => 'http',
-          'rack.multiprocess' => false,
-          'rack.run_once' => false,
-
+        env = BASE_ENV.merge(@env_ffi)
+        env.update(
           'rack.input' => self,
-          'async.callback' => response,
-          'CONTENT_LENGTH' => @env_ffi.delete('HTTP_CONTENT_LENGTH'),
-          'CONTENT_TYPE' => @env_ffi.delete('HTTP_CONTENT_TYPE')
+          'async.callback' => response
         )
+        env["HTTP_HOST"] ||= BASE_ENV["SERVER_NAME"]
+        if env.has_key?('HTTP_CONTENT_LENGTH')
+          env['CONTENT_LENGTH'] = env.delete('HTTP_CONTENT_LENGTH')
+        end
+        if env.has_key?('HTTP_CONTENT_TYPE')
+          env['CONTENT_TYPE'] = env.delete('HTTP_CONTENT_TYPE')
+        end
+        env
       end
     end
 
