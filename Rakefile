@@ -9,7 +9,7 @@ class String
   end
 end
 
-require 'lib/ebb'
+require 'lib/ebb/version'
 
 libev_dist = "http://dist.schmorp.de/libev/Attic"
 libev_release = "libev-3.43.tar.gz"
