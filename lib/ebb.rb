@@ -158,6 +158,7 @@ module Ebb
       @head = "HTTP/1.1 #{status} #{HTTP_STATUS_CODES[status.to_i]}\r\n"
       headers.each { |field, value| @head << "#{field}: #{value}\r\n" }
       @head << "\r\n"
+      @output << @head
 
       # XXX i would prefer to do
       # @chunked = true unless body.respond_to?(:length)
@@ -168,12 +169,7 @@ module Ebb
       # Note: not setting Content-Length. do it yourself.
       
       body.each do |chunk| 
-        if @head.nil?
-          write(chunk) 
-        else
-          write(@head + chunk) 
-          @head = nil
-        end
+        write(chunk) 
         @connection.write
       end
 
