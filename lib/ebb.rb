@@ -259,7 +259,6 @@ module Ebb
   
   class Request
     attr_accessor :connection
-    BASE_ENV = 
     
     def env
       @env ||= begin
