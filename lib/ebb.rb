@@ -15,7 +15,7 @@ module Ebb
     @running = false
   end
   
-  def self.start_server(app, options={})
+  def self.set_options(options)
     if options.has_key?(:fileno)
       fd = options[:fileno].to_i
       FFI::server_listen_on_fd(fd)
@@ -43,12 +43,19 @@ module Ebb
           log.puts "error opening certificate or key file"
         end
       end
-    end
 
+    unless options[:docroot].nil?
+      @@docroot = options[:docroot]
+      raise "#{@@docroot} not a directory"unless File.directory?(@@docroot)
+    end
+  end
+
+  def self.start_server(app, options={})
+    set_options(options)
     log.puts "Ebb PID #{Process.pid}"
     
-    @running = true
     Connection.reset_responses
+    @running = true
     trap('INT')  { stop_server }
 
     while @running
