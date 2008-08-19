@@ -81,7 +81,7 @@ end
 if $0 == __FILE__
   require DIR + '/../lib/ebb'
   Ebb::start_server(SimpleApp.new, 
-                     :port => 4001,
+                     :port => 4001
 #                     :ssl_cert => "/home/ryan/projects/ebb/benchmark/ca-cert.pem",
 #                     :ssl_key => "/home/ryan/projects/ebb/benchmark/ca-key.pem"
                     )

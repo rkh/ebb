@@ -103,6 +103,7 @@ module Ebb
     end
 
     def on_open
+      @being_written = nil
       @requests = []
       @@responses[self] = []
     end
@@ -158,7 +159,6 @@ module Ebb
       @head = "HTTP/1.1 #{status} #{HTTP_STATUS_CODES[status.to_i]}\r\n"
       headers.each { |field, value| @head << "#{field}: #{value}\r\n" }
       @head << "\r\n"
-      @output << @head
 
       # XXX i would prefer to do
       # @chunked = true unless body.respond_to?(:length)
@@ -170,7 +170,6 @@ module Ebb
       
       body.each do |chunk| 
         write(chunk) 
-        @connection.write
       end
 
       body.on_error { close } if body.respond_to?(:on_error)
@@ -191,15 +190,18 @@ module Ebb
 
     def finish
       @finished = true 
-      if @chunked
-        write("") 
-        @connection.write
-      end
+      write("") if @chunked
     end
     
     def write(chunk)
       encoded = @chunked ? "#{chunk.length.to_s(16)}\r\n#{chunk}\r\n" : chunk
-      @output << encoded
+      if @head.nil?
+        @output << encoded
+      else
+        @output << @head + encoded
+        @head = nil
+      end
+      @connection.write
     end
 
     HTTP_STATUS_CODES = {
