@@ -10,6 +10,10 @@ module Ebb
   def self.running?
     FFI::server_open?
   end
+
+  def self.ssl?
+    @@secure
+  end
   
   def self.stop_server()
     @running = false
@@ -31,6 +35,7 @@ module Ebb
       log.puts "Ebb is listening at http://0.0.0.0:#{port}/"
     end
 
+    @@secure = false
     if options.has_key?(:ssl_cert) and options.has_key?(:ssl_key)
       unless FFI.respond_to?(:server_set_secure)
         log.puts "ebb compiled without ssl support. get gnutls" 
@@ -39,6 +44,7 @@ module Ebb
         key_file = options[:ssl_key]
         if FileTest.readable?(cert_file) and FileTest.readable?(cert_file)
           FFI::server_set_secure(cert_file, key_file);
+          @@secure = true
         else 
           log.puts "error opening certificate or key file"
         end
@@ -282,7 +288,6 @@ module Ebb
       'SERVER_PROTOCOL' => 'HTTP/1.1',
       'rack.version' => [0, 1],
       'rack.errors' => STDERR,
-      'rack.url_scheme' => 'http',
       'rack.multiprocess' => false,
       'rack.run_once' => false
     }
@@ -292,7 +297,8 @@ module Ebb
         env = BASE_ENV.merge(@env_ffi)
         env.update(
           'rack.input' => self,
-          'async.callback' => response
+          'async.callback' => response,
+          'rack.url_scheme' => Ebb.ssl? ? 'https' : 'http'
         )
         env["HTTP_HOST"] ||= BASE_ENV["SERVER_NAME"]
         if env.has_key?('HTTP_CONTENT_LENGTH')
