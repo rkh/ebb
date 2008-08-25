@@ -5,7 +5,9 @@
 require File.dirname(__FILE__) + '/ebb/version'
 
 module Ebb
-  autoload :FFI, File.dirname(__FILE__) + '/../ext/ebb_ffi'
+  LIBDIR = File.dirname(__FILE__)
+  autoload :FFI, LIBDIR + '/../ext/ebb_ffi'
+  autoload :Runner, LIBDIR + '/ebb/runner'
   
   def self.running?
     FFI::server_open?
@@ -336,6 +338,9 @@ module Rack
         ::Ebb.start_server(app, options)
       end
     end
+  end
+  module Adapter
+    autoload :Rails, Ebb::LIBDIR + '/rack/adapter/rails'
   end
 end
 
