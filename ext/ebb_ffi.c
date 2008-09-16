@@ -229,7 +229,7 @@ headers_complete(ebb_request *request)
 
   VALUE env = rb_iv_get(rb_request, "@env_ffi");
 
-  rb_iv_set(rb_request, "@content_length", INT2FIX(request->content_length));
+  //rb_iv_set(rb_request, "@content_length", INT2FIX(request->content_length));
   rb_iv_set( rb_request
            , "@chunked"
            , request->transfer_encoding == EBB_CHUNKED ? Qtrue : Qfalse
@@ -281,6 +281,13 @@ headers_complete(ebb_request *request)
   /* make sure QUERY_STRING is set */
   if(Qnil == rb_hash_aref(env, g_query_string)) {
     rb_hash_aset(env, g_query_string, g_empty_str);
+  }
+
+  /* ensure last header and its value find its way in env hash*/
+  VALUE field = rb_iv_get(rb_request, "@field_in_progress");
+  VALUE value = rb_iv_get(rb_request, "@value_in_progress");
+  if(field !=Qnil && value!=Qnil){
+    rb_hash_aset(env, field, value);
   }
 
   rb_ary_push(waiting_requests, rb_request);
