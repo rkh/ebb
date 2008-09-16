@@ -193,8 +193,12 @@ module Ebb
       headers.each { |field, value| @head << "#{field}: #{value}\r\n" }
       @head << "\r\n"
       
-      body.each do |chunk| 
-        write(chunk) 
+      if headers["Content-Length"] != "0"
+        body.each do |chunk| 
+          write(chunk)
+        end	
+      else
+	write('')
       end
 
       body.on_error { close } if body.respond_to?(:on_error)
