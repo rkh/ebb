@@ -255,6 +255,11 @@ headers_complete(ebb_request *request)
   }
   rb_hash_aset(env, g_request_method, method);
 
+  /* set HTTP_CONTENT_LENGTH */ 
+  VALUE f = rb_str_new(RSTRING_PTR(g_http_prefix), RSTRING_LEN(g_http_prefix));
+  rb_str_cat(f, RSTRING_PTR(g_content_length), RSTRING_LEN(g_content_length));
+  rb_hash_aset(env, f, INT2FIX(request->content_length));
+
   /* set PATH_INFO */
   rb_hash_aset(env, g_path_info, rb_hash_aref(env, g_request_path));
 
