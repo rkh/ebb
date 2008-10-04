@@ -198,7 +198,7 @@ module Ebb
           write(chunk)
         end	
       else
-	write('')
+        write('')
       end
 
       body.on_error { close } if body.respond_to?(:on_error)
