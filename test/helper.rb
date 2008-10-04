@@ -49,19 +49,10 @@ class HelperApp
   end
 end
 
-class Test::Unit::TestCase
-  def get(path)
-    response = Net::HTTP.get_response(URI.parse("http://0.0.0.0:#{TEST_PORT}#{path}"))
-  end
-  
-  def post(path, data)
-    response = Net::HTTP.post_form(URI.parse("http://0.0.0.0:#{TEST_PORT}#{path}"), data)
-  end
-end
-
 class ServerTest < Test::Unit::TestCase
-  def get(path)
-    response = Net::HTTP.get_response(URI.parse("http://0.0.0.0:#{TEST_PORT}#{path}"))
+  def get(path, headers=nil)
+    h = Net::HTTP.new('127.0.0.1', TEST_PORT)
+    response = h.get(path, headers)
     env = JSON.parse(response.body)
   end
 
@@ -99,9 +90,11 @@ class ServerTestFD < ServerTest
 end
 
 class ServerTestSocket < ServerTest
-  def get(path)
+  def get(path, headers = {})
     socket = UNIXSocket.open(@socketfile)
-    socket.write("GET #{path} HTTP/1.0\r\n\r\n")
+    socket.write("GET #{path} HTTP/1.0\r\n")
+    headers.each_pair { |field, value| socket.write("#{field}: #{value}\r\n") }
+    socket.write("\r\n")
     response = ""
     while chunk = socket.read(100)
       response << chunk

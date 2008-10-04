@@ -28,6 +28,18 @@ module BasicTests
       assert_equal 200, response['status']
     end
   end
+
+  def test_last_header
+    response = get("/bytes/123", {
+      "Hello" => "World",
+      "Something" => "Else",
+      "Content-Length" => "0"
+    })
+    assert_equal 200, response['status'] 
+    assert_equal "World", response['HTTP_HELLO']
+    assert_equal "Else", response['HTTP_SOMETHING']
+    assert_equal 0, response['CONTENT_LENGTH']
+  end
 end
 
 class BasicTest < ServerTest
