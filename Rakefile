@@ -25,7 +25,7 @@ CLEAN.add ["**/*.{o,bundle,so,obj,pdb,lib,def,exp}", "benchmark/*.dump", 'site/i
 CLOBBER.add ['ext/Makefile', 'ext/mkmf.log'] + SRCEBBFILES
 
 Rake::TestTask.new do |t|
-  t.test_files = FileList.new("test/*.rb")
+  t.test_files = FileList.new("test/basic_test.rb")
   t.verbose = true
 end
 

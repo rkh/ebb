@@ -10,7 +10,7 @@ module Ebb
   autoload :Runner, LIBDIR + '/ebb/runner'
   
   def self.running?
-    FFI::server_open?
+    FFI::server_running?
   end
 
   def self.ssl?
@@ -55,7 +55,7 @@ module Ebb
 
     unless options[:docroot].nil?
       @@docroot = options[:docroot]
-      raise "#{@@docroot} not a directory"unless File.directory?(@@docroot)
+      raise "#{@@docroot} not a directory" unless File.directory?(@@docroot)
     end
   end
 
@@ -65,15 +65,14 @@ module Ebb
     
     Connection.reset_responses
     @running = true
-    trap('INT')  { stop_server }
 
     while @running
       FFI::server_process_connections()
       while request = FFI::server_waiting_requests.shift
-        if app.respond_to?(:deferred?) and !app.deferred?(request.env)
-          process(app, request)
-        else
+        if app.respond_to?(:deferred?) and app.deferred?(request.env)
           Thread.new(request) { |req| process(app, req) }
+        else
+          process(app, request)
         end
       end
     end

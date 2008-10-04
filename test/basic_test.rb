@@ -1,4 +1,6 @@
 require File.dirname(__FILE__) + '/helper'
+require 'ruby-debug'
+Debugger.start
 
 module BasicTests
   def test_get_bytes
@@ -32,9 +34,9 @@ class BasicTest < ServerTest
   include BasicTests
 end
 
-class BasicTestFD < ServerTestFD
-  include BasicTests
-end
+#class BasicTestFD < ServerTestFD
+#  include BasicTests
+#end
 
 #class BasicTestUnixSocket < ServerTestSocket
 #  include BasicTests

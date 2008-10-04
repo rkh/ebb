@@ -33,10 +33,7 @@ static VALUE cRequest;
 static VALUE cConnection;
 static VALUE waiting_requests;
 
-/* You don't want to run more than one server per Ruby VM. Really
- * I'm making this explicit by not defining a Ebb::Server class but instead
- * initializing a single server and single event loop on module load.
- */
+/* You don't want to run more than one server per Ruby process. */
 static ebb_server server;
 static unsigned int nconnections;
 struct ev_loop *loop;
@@ -91,33 +88,32 @@ idle_cb (struct ev_loop *loop, struct ev_idle *w, int revents) {
   /* Ryan's Hacky Ruby Thread Scheduler */
 
   /* TODO: For Ruby 1.9 I should use rb_thread_blocking_region() instead of
-   * this hacky idle_cb. Of course then I couldn't use rb_funcall in the
-   * callbacks.. it might be easier to just use this!
+   * idle_cb(). Of course then I couldn't use rb_funcall in the
+   * callbacks...it might be better to just use this!
    */
+
   if(rb_thread_alone()) {
-    /* best option: just stop calling idle_cb and wait for the 
-     * server fd to wake up by sitting in the libev loop. This
-     * should be very fast.
+    /* best option: just stop calling idle_cb and wait for the server fd to
+     * wake up by sitting in the libev loop. This should be very fast.
      */
     detach_idle_watcher();
   } else if(nconnections > 0) {
-    /* second best option: there are other threads running and there
-     * are clients to process. here we'll just call rb_thread_schedule()
-     * because it doesn't take much time and allows those workers to run.
+    /* second best option: there are other threads running and there are
+     * clients to process. here we'll just call rb_thread_schedule() because
+     * it doesn't take much time and allows those workers to run.
      */
     rb_thread_schedule();
   } else {
     /* worst case: there are no clients to process but there is some long
      * running thread. we use rb_thread_select() which is slow to wake up
-     * but allows us to wait until the server has a new connection.
-     * Try to avoid this - do not let threads run in the background of the
-     * server.
+     * but allows us to wait until the server has a new connection. Try to
+     * avoid this--do not let threads run in the background of the server.
      */
-     struct timeval idle_timeout = { 0, 50000 };
-     fd_set server_fd_set;
-     FD_ZERO(&server_fd_set);
-     FD_SET(server.fd, &server_fd_set);
-     rb_thread_select(server.fd+1, &server_fd_set, 0, 0, &idle_timeout);
+    struct timeval idle_timeout = { 0, 50000 };
+    fd_set server_fd_set;
+    FD_ZERO(&server_fd_set);
+    FD_SET(server.fd, &server_fd_set);
+    rb_thread_select(server.fd+1, &server_fd_set, 0, 0, &idle_timeout);
   }
 }
 
@@ -331,10 +327,10 @@ request_read(VALUE x, VALUE rb_request, VALUE want)
   VALUE body = rb_iv_get(rb_request, "@body");
 
   if(RARRAY_LEN(body) > 0) {
-    /* ignore how much they want! haha */
+    /* FIXME ignore how much they want! haha */
     return rb_ary_shift(body);
     
-  } if(ebb_request_has_body(request)) {
+  } else if(!ebb_request_has_body(request)) {
     return Qnil;
 
   } else {
@@ -449,7 +445,7 @@ server_unlisten(VALUE _)
 }
 
 static VALUE 
-server_open(VALUE _)
+server_running(VALUE _)
 {
   return server.listening ? Qtrue : Qfalse;
 }
@@ -558,7 +554,7 @@ Init_ebb_ffi()
 #ifdef HAVE_GNUTLS 
   rb_define_singleton_method(mFFI, "server_set_secure", server_set_secure, 2);
 #endif
-  rb_define_singleton_method(mFFI, "server_open?", server_open, 0);
+  rb_define_singleton_method(mFFI, "server_running?", server_running, 0);
   rb_define_singleton_method(mFFI, "server_waiting_requests", server_waiting_requests, 0);
 
   rb_define_singleton_method(mFFI, "connection_schedule_close", connection_schedule_close, 1);
