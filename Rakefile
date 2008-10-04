@@ -24,11 +24,6 @@ DISTFILES = FileList.new('libev/*.{c,h}', 'lib/', 'bin/', 'ext/*.{rb,rl,c,h}', '
 CLEAN.add ["**/*.{o,bundle,so,obj,pdb,lib,def,exp}", "benchmark/*.dump", 'site/index.html']
 CLOBBER.add ['ext/Makefile', 'ext/mkmf.log'] + SRCEBBFILES
 
-Rake::TestTask.new do |t|
-  t.test_files = FileList.new("test/basic_test.rb")
-  t.verbose = true
-end
-
 LIBEBBFILES.each do |f|
   file(".libebb"/f => ".libebb") 
   file("ext"/f => ".libebb"/f) do |t|
@@ -66,7 +61,7 @@ file(".libebb/ebb_request_parser.c" => '.libebb/ebb_request_parser.rl') do
   sh 'ragel -s -G2 .libebb/ebb_request_parser.rl'
 end
 
-task(:test => DISTFILES)
+task(:test => :compile)
 Rake::TestTask.new do |t|
   t.test_files = 'test/basic_test.rb'
   t.verbose = true

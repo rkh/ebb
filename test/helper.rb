@@ -25,7 +25,7 @@ class HelperApp
     elsif commands.include?('test_post_length')
       input_body = env['rack.input'].read
       
-      content_length_header = env['CONTENT_LENGTH'].to_i
+      content_length_header = env['HTTP_CONTENT_LENGTH'].to_i
       
       if content_length_header == input_body.length
         body = "Content-Length matches input length"
