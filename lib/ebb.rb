@@ -6,7 +6,7 @@ require File.dirname(__FILE__) + '/ebb/version'
 
 module Ebb
   LIBDIR = File.dirname(__FILE__)
-  autoload :FFI, LIBDIR + '/../ext/ebb_ffi'
+  autoload :FFI, LIBDIR + '/ebb_ffi'
   autoload :Runner, LIBDIR + '/ebb/runner'
   
   def self.running?
