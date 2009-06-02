@@ -120,7 +120,7 @@ module Rack
                 
                 @response['Set-Cookie'] = [@response['Set-Cookie'], cookies].compact
                 # See http://groups.google.com/group/rack-devel/browse_thread/thread/e8759b91a82c5a10/a8dbd4574fe97d69?#a8dbd4574fe97d69
-                if Thin.ruby_18?
+                if RUBY_VERSION =~ /^1\.8/
                   @response['Set-Cookie'].flatten!
                 else
                   @response['Set-Cookie'] = @response['Set-Cookie'].join("\n")
