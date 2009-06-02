@@ -20,7 +20,7 @@ LIBEBBFILES = ['ebb.c', 'ebb.h',
                'rbtree.c', 'rbtree.h']
 SRCEBBFILES = LIBEBBFILES.map { |f| "ext" / f }
 
-DISTFILES = FileList.new('libev/*.{c,h}', 'lib/', 'bin/', 'ext/*.{rb,rl,c,h}', 'README', 'Rakefile') + SRCEBBFILES
+DISTFILES = FileList.new('libev/*.{c,h}', 'lib/**/*.rb', 'bin/', 'ext/*.{rb,rl,c,h}', 'README', 'Rakefile') + SRCEBBFILES
 CLEAN.add ["**/*.{o,bundle,so,obj,pdb,lib,def,exp}", "benchmark/*.dump", 'site/index.html']
 CLOBBER.add ['ext/Makefile', 'ext/mkmf.log'] + SRCEBBFILES
 
@@ -109,6 +109,7 @@ spec = Gem::Specification.new do |s|
   s.bindir = 'bin'  
   s.require_path = 'lib'
   s.extensions = 'ext/extconf.rb'
+  s.executables = ['ebb_rails']
   
   s.files = DISTFILES
 end
