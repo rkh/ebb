@@ -66,6 +66,8 @@ module Ebb
     Connection.reset_responses
     @running = true
 
+    trap("SIGINT") { @running = false }
+
     while @running
       FFI::server_process_connections()
       while request = FFI::server_waiting_requests.shift
