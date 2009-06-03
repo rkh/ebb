@@ -3,7 +3,7 @@
  * License. See README file for details.
  */
 #include <ruby.h>
-#if RUBY_VERSION_CODE < 191
+#if RUBY_VERSION_CODE < 190
 #include <rubyio.h>
 #include <rubysig.h>
 #else
@@ -434,11 +434,11 @@ server_listen_on_port(VALUE _, VALUE port)
 static VALUE 
 server_process_connections(VALUE _)
 {
-#if RUBY_VERSION_CODE < 191
+#if RUBY_VERSION_CODE < 190
   TRAP_BEG;
 #endif
   ev_loop(loop, EVLOOP_ONESHOT);
-#if RUBY_VERSION_CODE < 191
+#if RUBY_VERSION_CODE < 190
   TRAP_END;
 #endif
   return Qnil;
