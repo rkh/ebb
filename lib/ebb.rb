@@ -93,7 +93,7 @@ module Ebb
     # James Tucker's async response scheme
     # check out
     # http://github.com/raggi/thin/tree/async_for_rack/example/async_app.ru
-    res.call(status, headers, body) if status != 0 
+    res.call(status, headers, body) if status && status > 0
     # if status == 0 then the application promises to call
     # env['async.callback'].call(status, headers, body) 
     # later on...
